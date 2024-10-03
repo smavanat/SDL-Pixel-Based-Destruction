@@ -1,3 +1,5 @@
+//Online tutorial for referencing: https://gigi.nullneuron.net/gigilabs/sdl2-pixel-drawing/
+
 //#include<SDL.h>
 //#include <iostream>
 //

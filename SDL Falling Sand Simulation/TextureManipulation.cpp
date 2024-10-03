@@ -1,5 +1,4 @@
-///*This source code copyrighted by Lazy Foo' Productions 2004-2024
-//and may not be redistributed without written permission.*/
+//Online tutorial for referencing: https://lazyfoo.net/tutorials/SDL/40_texture_manipulation/index.php
 //
 ////Using SDL, SDL_image, standard IO, and strings
 //#include <SDL.h>
