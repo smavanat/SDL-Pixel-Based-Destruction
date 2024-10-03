@@ -1,1 +1,0 @@
-//https://lazyfoo.net/tutorials/SDL/17_mouse_events/index.php
