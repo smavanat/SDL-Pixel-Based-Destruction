@@ -131,7 +131,9 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Pixel Clicker.cpp" />
+    <ClCompile Include="Paint.cpp" />
     <ClCompile Include="Test.cpp" />
+    <ClCompile Include="Texture clicker.cpp" />
     <ClCompile Include="TextureManipulation.cpp" />
   </ItemGroup>
   <ItemGroup>

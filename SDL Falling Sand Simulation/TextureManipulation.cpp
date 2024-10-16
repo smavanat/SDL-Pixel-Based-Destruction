@@ -1,4 +1,4 @@
-//Online tutorial for referencing: https://lazyfoo.net/tutorials/SDL/40_texture_manipulation/index.php
+////Online tutorial for referencing: https://lazyfoo.net/tutorials/SDL/40_texture_manipulation/index.php
 //
 ////Using SDL, SDL_image, standard IO, and strings
 //#include <SDL.h>
