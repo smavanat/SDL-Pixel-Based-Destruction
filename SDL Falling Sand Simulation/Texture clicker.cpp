@@ -52,6 +52,8 @@ SDL_Window* gWindow = NULL;
 SDL_Renderer* gRenderer = NULL;
 Texture testTexture;
 
+int scale = 10;
+
 bool init();
 bool loadMedia();
 
@@ -207,7 +209,23 @@ void erase(int x, int y) {
 
 	Uint32 transparent = testTexture.mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
 
-	pixels[y * testTexture.getWidth() + x] = transparent;
+	if (scale > 0) {
+		for (int w = 0; w < scale * 2; w++)
+		{
+			for (int h = 0; h < scale * 2; h++)
+			{
+				int dx = scale - w; // horizontal offset
+				int dy = scale - h; // vertical offset
+				if ((dx * dx + dy * dy) <= (scale * scale)&&(x+dx<testTexture.getWidth()) && (x+dx > -1) && (y + dy < testTexture.getHeight()) && (y + dy > -1))
+				{
+					pixels[(y + dy) * testTexture.getWidth() + (x + dx)] = transparent;
+				}
+			}
+		}
+	}
+	else {
+		pixels[y * testTexture.getWidth() + x] = transparent;
+	}
 
 	testTexture.loadFromPixels();
 }
