@@ -9,7 +9,7 @@ const int SCREEN_HEIGHT = 480;
 //Texture class. This will contain our initial red square, that we will then modify and break up.
 class Texture {
 	public:
-		Texture();
+		Texture(int x, int y);
 
 		~Texture();
 
@@ -23,7 +23,9 @@ class Texture {
 
 		void free();
 
-		void render(int x, int y);
+		void setOrigin(int x, int y);
+
+		void render();
 
 		int getWidth();
 		int getHeight();
@@ -50,20 +52,19 @@ class Texture {
 //Some global variables
 SDL_Window* gWindow = NULL;
 SDL_Renderer* gRenderer = NULL;
-Texture testTexture;
+Texture testTexture = Texture(240, 190);
 
 int scale = 10;
 
 bool init();
 bool loadMedia();
 
-Texture::Texture() {
+Texture::Texture(int x, int y) {
 	texture = NULL;
 	oldSurface = NULL;
 	width = 0;
 	height = 0;
-	originX = 0;
-	originY = 0;
+	setOrigin(x, y);
 }
 
 Texture::~Texture() {
@@ -176,10 +177,13 @@ void Texture::free() {
 	}
 }
 
-void Texture::render(int x, int y) {
+void Texture::setOrigin(int x, int y) {
 	originX = x;
 	originY = y;
-	SDL_Rect renderQuad = { x, y, width, height };
+}
+
+void Texture::render() {
+	SDL_Rect renderQuad = { originX, originY, width, height };
 	SDL_RenderCopy(gRenderer, texture, NULL, &renderQuad);
 }
 
@@ -333,24 +337,41 @@ int main(int argc, char* args[]) {
 		else {
 			bool quit = false;
 			bool leftMouseButtonDown = false;
+			bool rightMouseButtonDown = false;
 
 			SDL_Event e;
 			while (!quit) {
+				int x, y;
 				while (SDL_PollEvent(&e)) {
 					switch (e.type) {
 					case SDL_QUIT:
 						quit = true;
 						break;
+					//Reseting bool values
 					case SDL_MOUSEBUTTONUP:
 						if (e.button.button == SDL_BUTTON_LEFT)
 							leftMouseButtonDown = false;
+						if (e.button.button == SDL_BUTTON_RIGHT)
+							rightMouseButtonDown = false;
 						break;
 					case SDL_MOUSEBUTTONDOWN:
 						if (e.button.button == SDL_BUTTON_LEFT)
 							leftMouseButtonDown = true;
+						if (e.button.button == SDL_BUTTON_RIGHT) {
+							rightMouseButtonDown = true;
+							SDL_GetMouseState(&x, &y);
+						}
 					case SDL_MOUSEMOTION:
 						if (leftMouseButtonDown &&  e.motion.x >= 0 && e.motion.x < 640 && e.motion.y < 480 && e.motion.y >= 0) {
 							erase(e.motion.x, e.motion.y);
+						}
+						//Dragging functionality
+						else if (rightMouseButtonDown && e.motion.x >= 0 && e.motion.x < 640 && e.motion.y < 480 && e.motion.y >= 0) {
+							if (e.motion.x >= testTexture.getOriginX() && e.motion.x < testTexture.getOriginX() + testTexture.getWidth() && e.motion.y < testTexture.getOriginY() + testTexture.getHeight() && e.motion.y >= testTexture.getOriginY()) {
+								int newX = testTexture.getOriginX() + e.motion.xrel;
+								int newY = testTexture.getOriginY() + e.motion.yrel;
+								testTexture.setOrigin(newX, newY);
+							}
 						}
 						break;
 					}
@@ -359,7 +380,7 @@ int main(int argc, char* args[]) {
 				SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
 				SDL_RenderClear(gRenderer);
 
-				testTexture.render(240, 190);
+				testTexture.render();
 
 				SDL_RenderPresent(gRenderer);
 			}

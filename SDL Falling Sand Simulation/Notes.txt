@@ -1,0 +1,175 @@
+Basically, there are two situations in which we can split the textures, when the pixels are scaled (eg one 
+"pixel" is actually a 4x4 square of pixels) and when the pixels are unscaled.
+Some prerequisites that we need for this:
+	- The pixel buffer array
+	- An array that is the same size of the pixel buffer array and is initially populated with 0s
+		Every time we visit a pixel in the buffer array we set its value in the second array to 1
+		This means we can see which pixels we have visited and skip them if we ever happen to go over them
+	- We need a function that checks if the pixel is at the edge of the texture. Since cpp only has 1d arrays
+		it will probably look something like this:
+		bool isAtEdge(int pixelPosition, int arrayWidth, int arrayLength){
+			if(pixelPosition < arrayWidth || pixelPosition % arrayWidth == 0 || 
+				pixelPosition % arrayWidth ==  arrayWidth - 1 || pixelPosition >= arrayLength-arrayHeight){
+					return True
+				}
+				return False
+		}
+	- We only want to consider pixels that are coloured and have a neighbouring pixel that is not coloured.
+		Ignore all other pixels
+		A function to find the colours of neighbouring pixels in a 1d array would probably look like:
+		bool findColoursOfNeighbours(int pixelPosition, int arrayWidth, Uint32[] bufferArray) {
+			bool nextToBlank = False;
+			//There is probably a more efficient way of doing this. Will find later
+			if(isAtEdge){
+				if(isAtCorner){
+					if(isAtTopEdge && isAtLeftEdge){
+						for(int i = 0; i < 2; i++){
+							for(int j = 0; j < 2; j++){
+								if(bufferArray[pixelPosition + (i*arrayWidth) + j] == noPixelColour){
+									nextToBlank = True;
+									break;
+								}
+							}
+							if(nextToBlank){
+								break;
+							}
+						}
+					}
+					if(iisAtTopEdge && isAtRightEdge){
+						for(int i = 0; i < 2; i++){
+							for(int j = -1; j < 1; j++){
+								if(bufferArray[pixelPosition + (i*arrayWidth) + j] == noPixelColour){
+									nextToBlank = True;
+									break;
+								}
+							}
+							if(nextToBlank){
+								break;
+							}
+						}
+					}
+					if(isAtBottomEdge && isAtLeftEdge){
+						for(int i = -1; i < 1; i++){
+							for(int j = 0; j < 2; j++){
+								if(bufferArray[pixelPosition + (i*arrayWidth) + j] == noPixelColour){
+									nextToBlank = True;
+									break;
+								}
+							}
+							if(nextToBlank){
+								break;
+							}
+						}
+					}
+					if(isAtBottomEdge && isAtLeftEdge){
+						for(int i = -1; i < 1; i++){
+							for(int j = 0; j < 2; j++){
+								if(bufferArray[pixelPosition + (i*arrayWidth) + j] == noPixelColour){
+									nextToBlank = True;
+									break;
+								}
+							}
+							if(nextToBlank){
+								break;
+							}
+						}
+					}
+				}
+				else {
+					//Need to create these boolean functions to determine which edge the pixel is at
+					if(isAtTopEdge){
+						for(int i = 0; i < 2; i++){
+							for(int j = -1; j < 2; j++){
+								if(bufferArray[pixelPosition + (i*arrayWidth) + j] == noPixelColour){
+									nextToBlank = True;
+									break;
+								}
+							}
+							if(nextToBlank){
+								break;
+							}
+						}
+					}
+					if(isAtRightEdge){
+						for(int i = -1; i < 2; i++){
+							for(int j = -1; j < 1; j++){
+								if(bufferArray[pixelPosition + (i*arrayWidth) + j] == noPixelColour){
+									nextToBlank = True;
+									break;
+								}
+							}
+							if(nextToBlank){
+								break;
+							}
+						}
+					}
+					if(isAtBottomEdge){
+						for(int i = -1; i < 1; i++){
+							for(int j = -1; j < 2; j++){
+								if(bufferArray[pixelPosition + (i*arrayWidth) + j] == noPixelColour){
+									nextToBlank = True;
+									break;
+								}
+							}
+							if(nextToBlank){
+								break;
+							}
+						}
+					}
+					if(isAtLeftEdge){
+						for(int i = -1; i < 2; i++){
+							for(int j = 0; j < 2; j++){
+								if(bufferArray[pixelPosition + (i*arrayWidth) + j] == noPixelColour){
+									nextToBlank = True;
+									break;
+								}
+							}
+							if(nextToBlank){
+								break;
+							}
+						}
+					}
+				}
+			}
+			else {
+				for (int i = -1; i < 2; i++){
+					for(int j = -1; j < 2; j++){
+					//noPixelColour is just some pseudocode variable for the value of the pixels that are 
+					//counted as erased. Change it to something else in the actual code
+					//Also I don't know if this for loop actually works. Test with an int array in a seperate
+					//program or something
+						if(bufferArray[pixelPosition + (i*arrayWidth) + j] == noPixelColour){
+							nextToBlank = True;
+							break;
+						}
+					}
+					if(nextToBlank){
+						break;
+					}
+				}
+			}
+		}
+When we find a pixel that is coloured but is next to erased pixels, we move in two directions away from it,
+performing DFS to follow the edge of coloured pixels next to erased pixels until either we hit an edge or 
+the two paths intersect. We mark each pixel we visit in the DFS as visited in our array
+When figuring out how to split the texture when the pixels are unscaled, we need to consider several cases:
+1) The two dfs paths do not intersect 
+	This means the dfs paths have both reached the edge of the texture
+	Once the edges have been found, we switch to following the edge going along erased pixels until either 
+	the paths intersect, in which case we do not do anything as we simply have an indent in the texture,
+	or we hit the opposite side where there are coloured pixels. 
+	In the second case, this allows us to essentially imagine rectangles around the two split shapes and 
+	calculate the areas of these rectangles. The contents of the smaller rectangle are copied into a new 
+	texture while the bigger rectangle stays in the current texture and all of the pixels that moved to the 
+	new texture are set to the erased value
+2) The two dfs paths intersect
+	This means there is either a hole in the texture, or that islets have been created within the texture
+	We would in this case draw lines between each pair of of pixels on the same row
+	If there are no coloured pixels between them, move on since there is just a hole.
+	If we hit a coloured pixel, run dfs again to get the outline of the islet, and then remove it from the
+	texture as we did before
+
+Cleanup:
+	After we have dealt with all of the texture splitting, we need to find the dimensions of the remaining texture
+	If it still covers the same rectangular area as before, do nothing,
+	Otherwise create a new texture of a smaller size and copy the pixels over and delete the old texture.
