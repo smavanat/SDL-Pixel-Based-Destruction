@@ -234,6 +234,201 @@ void erase(int x, int y) {
 	testTexture.loadFromPixels();
 }
 
+bool isAtEdge(int pixelPosition, int arrayWidth, int arrayLength) {
+	if (pixelPosition < arrayWidth || pixelPosition % arrayWidth == 0 ||
+		pixelPosition % arrayWidth == arrayWidth - 1 || pixelPosition >= arrayLength - arrayWidth) {
+		return true;
+	}
+	return false;
+}
+
+bool isAtCorner(int pixelPosition, int arrayWidth, int arrayLength) {
+	if (pixelPosition == 0 || pixelPosition == arrayWidth - 1 ||
+		pixelPosition == arrayLength - arrayWidth || pixelPosition == arrayLength - 1) {
+		return true;
+	}
+	return false;
+}
+
+bool isAtTopEdge(int pixelPosition, int arrayWidth) {
+	if (pixelPosition < arrayWidth) {
+		return true;
+	}
+	return false;
+}
+bool isAtBottomEdge(int pixelPosition, int arrayWidth, int arrayLength) {
+	if (pixelPosition >= arrayLength - arrayWidth) {
+		return true;
+	}
+	return false;
+}
+bool isAtLeftEdge(int pixelPosition, int arrayWidth) {
+	if (pixelPosition % arrayWidth == 0) {
+		return true;
+	}
+	return false;
+}
+bool isAtRightEdge(int pixelPosition, int arrayWidth) {
+	if (pixelPosition % arrayWidth == arrayWidth - 1) {
+		return true;
+	}
+	return false;
+}
+
+//I hate this method so much
+bool findColoursOfNeighbours(int pixelPosition, int arrayWidth, int arrayLength, Uint32* bufferArray) {
+	bool nextToBlank = false;
+	Uint32 noPixelColour = testTexture.mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
+	//There is probably a more efficient way of doing this. Will find later
+	if (isAtEdge(pixelPosition, arrayWidth, arrayLength)) {
+		if (isAtCorner(pixelPosition, arrayWidth, arrayLength)) {
+			if (isAtTopEdge(pixelPosition, arrayWidth) && isAtLeftEdge(pixelPosition, arrayWidth)) {
+				for (int i = 0; i < 2; i++) {
+					for (int j = 0; j < 2; j++) {
+						if (bufferArray[pixelPosition + (i * arrayWidth) + j] == noPixelColour) {
+							nextToBlank = true;
+							break;
+						}
+					}
+					if (nextToBlank) {
+						break;
+					}
+				}
+			}
+			if (isAtTopEdge(pixelPosition, arrayWidth) && isAtRightEdge(pixelPosition, arrayWidth)) {
+				for (int i = 0; i < 2; i++) {
+					for (int j = -1; j < 1; j++) {
+						if (bufferArray[pixelPosition + (i * arrayWidth) + j] == noPixelColour) {
+							nextToBlank = true;
+							break;
+						}
+					}
+					if (nextToBlank) {
+						break;
+					}
+				}
+			}
+			if (isAtBottomEdge(pixelPosition, arrayWidth, arrayLength) && isAtLeftEdge(pixelPosition, arrayWidth)) {
+				for (int i = -1; i < 1; i++) {
+					for (int j = 0; j < 2; j++) {
+						if (bufferArray[pixelPosition + (i * arrayWidth) + j] == noPixelColour) {
+							nextToBlank = true;
+							break;
+						}
+					}
+					if (nextToBlank) {
+						break;
+					}
+				}
+			}
+			if (isAtBottomEdge(pixelPosition, arrayWidth, arrayLength) && isAtLeftEdge(pixelPosition, arrayWidth)) {
+				for (int i = -1; i < 1; i++) {
+					for (int j = 0; j < 2; j++) {
+						if (bufferArray[pixelPosition + (i * arrayWidth) + j] == noPixelColour) {
+							nextToBlank = true;
+							break;
+						}
+					}
+					if (nextToBlank) {
+						break;
+					}
+				}
+			}
+		}
+		else {
+			//Need to create these boolean functions to determine which edge the pixel is at
+			if (isAtTopEdge(pixelPosition, arrayWidth)) {
+				for (int i = 0; i < 2; i++) {
+					for (int j = -1; j < 2; j++) {
+						if (bufferArray[pixelPosition + (i * arrayWidth) + j] == noPixelColour) {
+							nextToBlank = true;
+							break;
+						}
+					}
+					if (nextToBlank) {
+						break;
+					}
+				}
+			}
+			if (isAtRightEdge(pixelPosition, arrayWidth)) {
+				for (int i = -1; i < 2; i++) {
+					for (int j = -1; j < 1; j++) {
+						if (bufferArray[pixelPosition + (i * arrayWidth) + j] == noPixelColour) {
+							nextToBlank = true;
+							break;
+						}
+					}
+					if (nextToBlank) {
+						break;
+					}
+				}
+			}
+			if (isAtBottomEdge(pixelPosition, arrayWidth, arrayLength)) {
+				for (int i = -1; i < 1; i++) {
+					for (int j = -1; j < 2; j++) {
+						if (bufferArray[pixelPosition + (i * arrayWidth) + j] == noPixelColour) {
+							nextToBlank = true;
+							break;
+						}
+					}
+					if (nextToBlank) {
+						break;
+					}
+				}
+			}
+			if (isAtLeftEdge(pixelPosition, arrayWidth)) {
+				for (int i = -1; i < 2; i++) {
+					for (int j = 0; j < 2; j++) {
+						if (bufferArray[pixelPosition + (i * arrayWidth) + j] == noPixelColour) {
+							nextToBlank = true;
+							break;
+						}
+					}
+					if (nextToBlank) {
+						break;
+					}
+				}
+			}
+		}
+	}
+	else {
+		for (int i = -1; i < 2; i++) {
+			for (int j = -1; j < 2; j++) {
+				//noPixelColour is just some pseudocode variable for the value of the pixels that are 
+				//counted as erased. Change it to something else in the actual code
+				//Also I don't know if this for loop actually works. Test with an int array in a seperate
+				//program or something
+				if (bufferArray[pixelPosition + (i * arrayWidth) + j] == noPixelColour) {
+					nextToBlank = true;
+					break;
+				}
+			}
+			if (nextToBlank) {
+				break;
+			}
+		}
+	}
+	return nextToBlank;
+}
+
+void contourFinder() {
+	Uint32* pixels = testTexture.getPixels32();
+	Uint32 noPixelColour = testTexture.mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
+	Uint32 contourColour = testTexture.mapRGBA(0xFF, 0x00, 0xFF, 0xFF);
+	//Uint32 contourColour = testTexture.mapRGBA(255, 192, 203, 0x00);
+	for (int i = 0; i < testTexture.getWidth() * testTexture.getHeight(); i++) {
+		//printf("%i\n",i);
+		if (pixels[i] == noPixelColour || findColoursOfNeighbours(i, testTexture.getWidth(), testTexture.getWidth() * testTexture.getHeight(), pixels) == false) {
+			continue;
+		}
+		else {
+			//printf("The contourFinderWorks\n");
+			pixels[i] = contourColour;
+		}
+	}
+	testTexture.loadFromPixels();
+}
+
 bool init()
 {
 	//Initialization flag
@@ -350,6 +545,7 @@ int main(int argc, char* args[]) {
 					//Reseting bool values
 					case SDL_MOUSEBUTTONUP:
 						if (e.button.button == SDL_BUTTON_LEFT)
+							//contourFinder();
 							leftMouseButtonDown = false;
 						if (e.button.button == SDL_BUTTON_RIGHT)
 							rightMouseButtonDown = false;
