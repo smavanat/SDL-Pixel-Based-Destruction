@@ -2,6 +2,7 @@
 #include<stdio.h>
 #include<SDL_image.h>
 #include<iostream>
+#include <vector>
 
 const int SCREEN_WIDTH = 640;
 const int SCREEN_HEIGHT = 480;
@@ -275,6 +276,23 @@ bool isAtRightEdge(int pixelPosition, int arrayWidth) {
 	return false;
 }
 
+int* getNeighbours(int pixelPosition, int arrayWidth) {
+	int* neighbourArr = new int[8];
+	int index = 0;
+	for (int i = -1; i < 2; i++) {
+		for (int j = -1; j < 2; j++) {
+			if (j == 0 && i == 0) {
+				continue;
+			}
+			else {
+				neighbourArr[index] = pixelPosition + (i * arrayWidth) + j;
+				index++;
+			}
+		}
+	}
+	return neighbourArr;
+}
+
 //I hate this method so much
 bool findColoursOfNeighbours(int pixelPosition, int arrayWidth, int arrayLength, Uint32* bufferArray) {
 	bool nextToBlank = false;
@@ -429,6 +447,109 @@ void contourFinder() {
 	testTexture.loadFromPixels();
 }
 
+void splitTexture() {
+	Uint32* pixels = testTexture.getPixels32();
+	Uint32 noPixelColour = testTexture.mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
+	int arrayLength = testTexture.getWidth() * testTexture.getHeight();
+	int* visitedTracker = new int[arrayLength];
+	memset(visitedTracker, 0, arrayLength * sizeof(int));
+
+	for (int i = 0; i < arrayLength; i++) {
+		//printf("%i\n",i);
+		if (visitedTracker[i] == 1 || pixels[i] == noPixelColour || findColoursOfNeighbours(i, testTexture.getWidth(), arrayLength, pixels) == false) {
+			visitedTracker[i] = 1;
+			continue;
+		}
+		else {
+			visitedTracker[i] = 1;
+			//printf("The contourFinderWorks\n");
+			if (!isAtEdge(i, testTexture.getWidth(), arrayLength)) {
+				printf("We're not at an edge at %i\n", i);
+				pixels[i] = testTexture.mapRGBA(255, 165, 0, 1);
+				int* neighbourArr = getNeighbours(i, testTexture.getWidth());
+				std::vector<Uint32> possiblePursuits;
+				bool isSurroundedByErased = true;
+				for (int j = 0; j < 8; j++) {
+					if (pixels[neighbourArr[j]] != noPixelColour) {
+						isSurroundedByErased = false;
+						if (visitedTracker[neighbourArr[j]] == 1 && findColoursOfNeighbours(neighbourArr[j], testTexture.getWidth(), arrayLength, pixels)) {
+							possiblePursuits.push_back(neighbourArr[j]);
+						}
+					}
+				}
+				if (isSurroundedByErased) {
+					printf("We have a single pixel islet\n");
+				}
+				if (possiblePursuits.size() > 1) {
+					printf("Vector Size: %i\n", possiblePursuits.size());
+					Uint32 directions[2] = { possiblePursuits[0], possiblePursuits[1] };
+
+					//Infinite loop fun
+					while (directions[0] != directions[1]) {
+						while (!isAtEdge(directions[0], testTexture.getWidth(), arrayLength)
+							|| !isAtEdge(directions[1], testTexture.getWidth(), arrayLength)) {
+							for (Uint32& direction : directions) {
+								visitedTracker[direction] = 1;
+								//printf("%i\n", direction);
+								int* neighbourArr = getNeighbours(direction, testTexture.getWidth());
+								std::vector<Uint32> possiblePursuit;
+								for (int j = 0; j < 8; j++) {
+									if (pixels[neighbourArr[j]] != noPixelColour) {
+										if (visitedTracker[neighbourArr[j]] == 1 && findColoursOfNeighbours(neighbourArr[i], testTexture.getWidth(), arrayLength, pixels)) {
+											possiblePursuit.push_back(neighbourArr[j]);
+										}
+									}
+								}
+								if (!possiblePursuit.empty() && !isAtEdge(direction, testTexture.getWidth(), arrayLength)) {
+									direction = possiblePursuit[0];
+								}
+								//pixels[direction] = testTexture.mapRGBA(0xFF, 0x00, 0xFF, 0xFF);
+							}
+						}
+						if (isAtEdge(directions[0], testTexture.getWidth(), arrayLength)
+							|| isAtEdge(directions[1], testTexture.getWidth(), arrayLength)) {
+							printf("We reached an edge\n");
+							break;
+						}
+					}
+				}
+				printf("Infinite loop broken!!!!!!\n");
+			}
+			else {
+				printf("We have an edge case at %i\n", i);
+				pixels[i] = testTexture.mapRGBA(0xFF, 0x00, 0xFF, 0xFF);
+				/*int* neighbourArr = getNeighbours(i, testTexture.getWidth());
+				std::vector<Uint32> possiblePursuits;
+				bool isSurroundedByErased = true;
+				for (int i = 0; i < 8; i++) {
+					if (pixels[neighbourArr[i]] != noPixelColour) {
+						isSurroundedByErased = false;
+						if (findColoursOfNeighbours(neighbourArr[i], testTexture.getWidth(), testTexture.getWidth() * testTexture.getHeight(), pixels)) {
+							possiblePursuits.push_back(neighbourArr[i]);
+						}
+					}
+				}
+				if (isSurroundedByErased) {
+					printf("We have a single pixel islet");
+				}
+				Uint32 directionOne = possiblePursuits[0];*/
+			}
+		}
+	}
+
+	/*for (int i = 0; i < arrayLength; i++) {
+		if (i % testTexture.getWidth() == testTexture.getWidth() - 1) {
+			printf("%i\n", visitedTracker[i]);
+		}
+		else {
+			printf("%i", visitedTracker[i]);
+		}
+	}*/
+
+	testTexture.loadFromPixels();
+	delete[] visitedTracker;
+}
+
 bool init()
 {
 	//Initialization flag
@@ -546,6 +667,7 @@ int main(int argc, char* args[]) {
 					case SDL_MOUSEBUTTONUP:
 						if (e.button.button == SDL_BUTTON_LEFT)
 							//contourFinder();
+							splitTexture();
 							leftMouseButtonDown = false;
 						if (e.button.button == SDL_BUTTON_RIGHT)
 							rightMouseButtonDown = false;
