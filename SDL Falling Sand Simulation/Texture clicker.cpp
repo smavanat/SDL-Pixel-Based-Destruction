@@ -447,11 +447,27 @@ void contourFinder() {
 	testTexture.loadFromPixels();
 }
 
+void directionTraveller(Uint32 direction, int arrayLength, Uint32* pixels, int tracker[], Uint32 noPixelColour) {
+	int* neighbourArr = getNeighbours(direction, testTexture.getWidth());
+	std::vector<Uint32> possiblePursuit;
+	for (int j = 0; j < 8; j++) {
+		if (pixels[neighbourArr[j]] != noPixelColour) {
+			if (tracker[neighbourArr[j]] == 1 && findColoursOfNeighbours(neighbourArr[j], testTexture.getWidth(), arrayLength, pixels)) {
+				possiblePursuit.push_back(neighbourArr[j]);
+			}
+		}
+	}
+	if (!possiblePursuit.empty() && !isAtEdge(direction, testTexture.getWidth(), arrayLength)) {
+		direction = possiblePursuit[0];
+	}
+}
+
 void splitTexture() {
 	Uint32* pixels = testTexture.getPixels32();
 	Uint32 noPixelColour = testTexture.mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
 	int arrayLength = testTexture.getWidth() * testTexture.getHeight();
 	int* visitedTracker = new int[arrayLength];
+	Uint32 directions[2];
 	memset(visitedTracker, 0, arrayLength * sizeof(int));
 
 	for (int i = 0; i < arrayLength; i++) {
@@ -461,78 +477,75 @@ void splitTexture() {
 			continue;
 		}
 		else {
+			if (visitedTracker[i] == 1) {
+				printf("How have we already visited this place?");
+			}
 			visitedTracker[i] = 1;
 			//printf("The contourFinderWorks\n");
 			if (!isAtEdge(i, testTexture.getWidth(), arrayLength)) {
-				printf("We're not at an edge at %i\n", i);
-				pixels[i] = testTexture.mapRGBA(255, 165, 0, 1);
+				//printf("We're not at an edge at %i\n", i);
+				//pixels[i] = testTexture.mapRGBA(255, 165, 0, 1);
 				int* neighbourArr = getNeighbours(i, testTexture.getWidth());
 				std::vector<Uint32> possiblePursuits;
 				bool isSurroundedByErased = true;
 				for (int j = 0; j < 8; j++) {
 					if (pixels[neighbourArr[j]] != noPixelColour) {
 						isSurroundedByErased = false;
-						if (visitedTracker[neighbourArr[j]] == 1 && findColoursOfNeighbours(neighbourArr[j], testTexture.getWidth(), arrayLength, pixels)) {
+						if (visitedTracker[neighbourArr[j]] == 0 && findColoursOfNeighbours(neighbourArr[j], testTexture.getWidth(), arrayLength, pixels)) {
 							possiblePursuits.push_back(neighbourArr[j]);
 						}
 					}
 				}
+				printf("Vector Size: %i\n", possiblePursuits.size());
 				if (isSurroundedByErased) {
 					printf("We have a single pixel islet\n");
 				}
 				if (possiblePursuits.size() > 1) {
-					printf("Vector Size: %i\n", possiblePursuits.size());
-					Uint32 directions[2] = { possiblePursuits[0], possiblePursuits[1] };
+					directions[0] = possiblePursuits[0];
+					directions[1] = possiblePursuits[1];
 
-					//Infinite loop fun
-					while (directions[0] != directions[1]) {
-						while (!isAtEdge(directions[0], testTexture.getWidth(), arrayLength)
-							|| !isAtEdge(directions[1], testTexture.getWidth(), arrayLength)) {
-							for (Uint32& direction : directions) {
+					//This shit doesn't cause infinite loops anymore
+					//But it still loops too much
+					//Why?
+					//That's now fixed. Now there's just an out of bounds error on a vector and idk why. 
+					//It may be because I'm constanly erasing memory from directions. Fixed
+					while (directions[0] == directions[1]) {
+						for (Uint32& direction : directions) {
+							if (direction != -1) {
 								visitedTracker[direction] = 1;
+								pixels[direction] = testTexture.mapRGBA(255, 165, 0, 1);//This line isn't working
 								//printf("%i\n", direction);
 								int* neighbourArr = getNeighbours(direction, testTexture.getWidth());
-								std::vector<Uint32> possiblePursuit;
+								//std::vector<Uint32> possiblePursuit;
 								for (int j = 0; j < 8; j++) {
+									//printf("%i\n", neighbourArr[i]);
 									if (pixels[neighbourArr[j]] != noPixelColour) {
-										if (visitedTracker[neighbourArr[j]] == 1 && findColoursOfNeighbours(neighbourArr[i], testTexture.getWidth(), arrayLength, pixels)) {
-											possiblePursuit.push_back(neighbourArr[j]);
+										if (visitedTracker[neighbourArr[j]] == 0 && findColoursOfNeighbours(neighbourArr[j], testTexture.getWidth(), arrayLength, pixels)) {
+											//possiblePursuit.push_back(neighbourArr[j]);
+											direction = neighbourArr[j];
 										}
 									}
 								}
-								if (!possiblePursuit.empty() && !isAtEdge(direction, testTexture.getWidth(), arrayLength)) {
-									direction = possiblePursuit[0];
+								if (isAtEdge(direction, testTexture.getWidth(), arrayLength)) {
+									direction = -1;
 								}
-								//pixels[direction] = testTexture.mapRGBA(0xFF, 0x00, 0xFF, 0xFF);
+								delete[] neighbourArr;
 							}
+							//printf("Visited Tracker direction status: %i\n",visitedTracker[direction]);
+							
+							//printf("%i\n", direction);
 						}
-						if (isAtEdge(directions[0], testTexture.getWidth(), arrayLength)
-							|| isAtEdge(directions[1], testTexture.getWidth(), arrayLength)) {
+						if (directions[0] == directions[1]/*directions.empty()*/) {
 							printf("We reached an edge\n");
 							break;
 						}
 					}
+					printf("Infinite loop broken!!!!!!\n");
 				}
-				printf("Infinite loop broken!!!!!!\n");
 			}
 			else {
-				printf("We have an edge case at %i\n", i);
+				//printf("We have an edge case at %i\n", i);
 				pixels[i] = testTexture.mapRGBA(0xFF, 0x00, 0xFF, 0xFF);
-				/*int* neighbourArr = getNeighbours(i, testTexture.getWidth());
-				std::vector<Uint32> possiblePursuits;
-				bool isSurroundedByErased = true;
-				for (int i = 0; i < 8; i++) {
-					if (pixels[neighbourArr[i]] != noPixelColour) {
-						isSurroundedByErased = false;
-						if (findColoursOfNeighbours(neighbourArr[i], testTexture.getWidth(), testTexture.getWidth() * testTexture.getHeight(), pixels)) {
-							possiblePursuits.push_back(neighbourArr[i]);
-						}
-					}
-				}
-				if (isSurroundedByErased) {
-					printf("We have a single pixel islet");
-				}
-				Uint32 directionOne = possiblePursuits[0];*/
 			}
 		}
 	}
