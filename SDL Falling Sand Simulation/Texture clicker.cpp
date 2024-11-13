@@ -293,142 +293,27 @@ int* getNeighbours(int pixelPosition, int arrayWidth) {
 	return neighbourArr;
 }
 
-//I hate this method so much
+//Returns if next to blank pixel. Only for those pixels that are not an edge.
 bool findColoursOfNeighbours(int pixelPosition, int arrayWidth, int arrayLength, Uint32* bufferArray) {
 	bool nextToBlank = false;
+	//Transparent pixel colour.
 	Uint32 noPixelColour = testTexture.mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
-	//There is probably a more efficient way of doing this. Will find later
-	if (isAtEdge(pixelPosition, arrayWidth, arrayLength)) {
-		if (isAtCorner(pixelPosition, arrayWidth, arrayLength)) {
-			if (isAtTopEdge(pixelPosition, arrayWidth) && isAtLeftEdge(pixelPosition, arrayWidth)) {
-				for (int i = 0; i < 2; i++) {
-					for (int j = 0; j < 2; j++) {
-						if (bufferArray[pixelPosition + (i * arrayWidth) + j] == noPixelColour) {
-							nextToBlank = true;
-							break;
-						}
-					}
-					if (nextToBlank) {
-						break;
-					}
-				}
-			}
-			if (isAtTopEdge(pixelPosition, arrayWidth) && isAtRightEdge(pixelPosition, arrayWidth)) {
-				for (int i = 0; i < 2; i++) {
-					for (int j = -1; j < 1; j++) {
-						if (bufferArray[pixelPosition + (i * arrayWidth) + j] == noPixelColour) {
-							nextToBlank = true;
-							break;
-						}
-					}
-					if (nextToBlank) {
-						break;
-					}
-				}
-			}
-			if (isAtBottomEdge(pixelPosition, arrayWidth, arrayLength) && isAtLeftEdge(pixelPosition, arrayWidth)) {
-				for (int i = -1; i < 1; i++) {
-					for (int j = 0; j < 2; j++) {
-						if (bufferArray[pixelPosition + (i * arrayWidth) + j] == noPixelColour) {
-							nextToBlank = true;
-							break;
-						}
-					}
-					if (nextToBlank) {
-						break;
-					}
-				}
-			}
-			if (isAtBottomEdge(pixelPosition, arrayWidth, arrayLength) && isAtLeftEdge(pixelPosition, arrayWidth)) {
-				for (int i = -1; i < 1; i++) {
-					for (int j = 0; j < 2; j++) {
-						if (bufferArray[pixelPosition + (i * arrayWidth) + j] == noPixelColour) {
-							nextToBlank = true;
-							break;
-						}
-					}
-					if (nextToBlank) {
-						break;
-					}
-				}
-			}
-		}
-		else {
-			//Need to create these boolean functions to determine which edge the pixel is at
-			if (isAtTopEdge(pixelPosition, arrayWidth)) {
-				for (int i = 0; i < 2; i++) {
-					for (int j = -1; j < 2; j++) {
-						if (bufferArray[pixelPosition + (i * arrayWidth) + j] == noPixelColour) {
-							nextToBlank = true;
-							break;
-						}
-					}
-					if (nextToBlank) {
-						break;
-					}
-				}
-			}
-			if (isAtRightEdge(pixelPosition, arrayWidth)) {
-				for (int i = -1; i < 2; i++) {
-					for (int j = -1; j < 1; j++) {
-						if (bufferArray[pixelPosition + (i * arrayWidth) + j] == noPixelColour) {
-							nextToBlank = true;
-							break;
-						}
-					}
-					if (nextToBlank) {
-						break;
-					}
-				}
-			}
-			if (isAtBottomEdge(pixelPosition, arrayWidth, arrayLength)) {
-				for (int i = -1; i < 1; i++) {
-					for (int j = -1; j < 2; j++) {
-						if (bufferArray[pixelPosition + (i * arrayWidth) + j] == noPixelColour) {
-							nextToBlank = true;
-							break;
-						}
-					}
-					if (nextToBlank) {
-						break;
-					}
-				}
-			}
-			if (isAtLeftEdge(pixelPosition, arrayWidth)) {
-				for (int i = -1; i < 2; i++) {
-					for (int j = 0; j < 2; j++) {
-						if (bufferArray[pixelPosition + (i * arrayWidth) + j] == noPixelColour) {
-							nextToBlank = true;
-							break;
-						}
-					}
-					if (nextToBlank) {
-						break;
-					}
-				}
-			}
-		}
-	}
-	else {
-		for (int i = -1; i < 2; i++) {
-			for (int j = -1; j < 2; j++) {
-				//noPixelColour is just some pseudocode variable for the value of the pixels that are 
-				//counted as erased. Change it to something else in the actual code
-				//Also I don't know if this for loop actually works. Test with an int array in a seperate
-				//program or something
-				if (bufferArray[pixelPosition + (i * arrayWidth) + j] == noPixelColour) {
-					nextToBlank = true;
-					break;
-				}
-			}
-			if (nextToBlank) {
+
+	for (int i = -1; i < 2; i++) {
+		for (int j = -1; j < 2; j++) {
+			if (bufferArray[pixelPosition + (i * arrayWidth) + j] == noPixelColour) {
+				nextToBlank = true;
 				break;
 			}
+		}
+		if (nextToBlank) {
+			break;
 		}
 	}
 	return nextToBlank;
 }
 
+//Highlights the countours of erased pixels.
 void contourFinder() {
 	Uint32* pixels = testTexture.getPixels32();
 	Uint32 noPixelColour = testTexture.mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
@@ -447,6 +332,7 @@ void contourFinder() {
 	testTexture.loadFromPixels();
 }
 
+//Not currently used.
 void directionTraveller(Uint32 direction, int arrayLength, Uint32* pixels, int tracker[], Uint32 noPixelColour) {
 	int* neighbourArr = getNeighbours(direction, testTexture.getWidth());
 	std::vector<Uint32> possiblePursuit;
@@ -462,24 +348,173 @@ void directionTraveller(Uint32 direction, int arrayLength, Uint32* pixels, int t
 	}
 }
 
-void splitTexture() {
-	Uint32* pixels = testTexture.getPixels32();
+//Does a search if next to any transparent pixels when at left edge
+bool findColourOfNeighbourAtLeftEdge(int pixelPosition, int arrayWidth, int arrayLength, Uint32* bufferArray) {
+	bool nextToBlank = false;
 	Uint32 noPixelColour = testTexture.mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
+	if (isAtTopEdge(pixelPosition, arrayWidth)) {
+		if (bufferArray[pixelPosition + 1] == noPixelColour || bufferArray[pixelPosition + arrayWidth] == noPixelColour) {
+			nextToBlank = true;
+		}
+	}
+	else if (isAtBottomEdge(pixelPosition, arrayWidth, arrayLength)) {
+		if (bufferArray[pixelPosition + 1] == noPixelColour || bufferArray[pixelPosition - arrayWidth] == noPixelColour) {
+			nextToBlank = true;
+		}
+	}
+	else {
+		if (bufferArray[pixelPosition + 1] == noPixelColour || bufferArray[pixelPosition - arrayWidth] == noPixelColour || bufferArray[pixelPosition + arrayWidth] == noPixelColour) {
+			nextToBlank = true;
+		}
+	}
+	return nextToBlank;
+}
+
+//Does a search if next to any transparent pixels when at left edge
+bool findColourOfNeighbourAtRightEdge(int pixelPosition, int arrayWidth, int arrayLength, Uint32* bufferArray) {
+	bool nextToBlank = false;
+	Uint32 noPixelColour = testTexture.mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
+	if (isAtTopEdge(pixelPosition, arrayWidth)) {
+		if (bufferArray[pixelPosition - 1] == noPixelColour || bufferArray[pixelPosition + arrayWidth] == noPixelColour) {
+			nextToBlank = true;
+		}
+	}
+	else if (isAtBottomEdge(pixelPosition, arrayWidth, arrayLength)) {
+		if (bufferArray[pixelPosition - 1] == noPixelColour || bufferArray[pixelPosition - arrayWidth] == noPixelColour) {
+			nextToBlank = true;
+		}
+	}
+	else {
+		if (bufferArray[pixelPosition - 1] == noPixelColour || bufferArray[pixelPosition - arrayWidth] == noPixelColour || bufferArray[pixelPosition + arrayWidth] == noPixelColour) {
+			nextToBlank = true;
+		}
+	}
+	return nextToBlank;
+}
+
+//Does a search if next to any transparent pixels when at Top edge
+bool findColourOfNeighbourAtTopEdge(int pixelPosition, int arrayWidth, int arrayLength, Uint32* bufferArray) {
+	bool nextToBlank = false;
+	Uint32 noPixelColour = testTexture.mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
+	if (isAtLeftEdge(pixelPosition, arrayWidth)) {
+		if (bufferArray[pixelPosition + 1] == noPixelColour || bufferArray[pixelPosition + arrayWidth] == noPixelColour) {
+			nextToBlank = true;
+		}
+	}
+	else if (isAtRightEdge(pixelPosition, arrayWidth)) {
+		if (bufferArray[pixelPosition - 1] == noPixelColour || bufferArray[pixelPosition + arrayWidth] == noPixelColour) {
+			nextToBlank = true;
+		}
+	}
+	else {
+		if (bufferArray[pixelPosition + 1] == noPixelColour || bufferArray[pixelPosition - 1] == noPixelColour || bufferArray[pixelPosition + arrayWidth] == noPixelColour) {
+			nextToBlank = true;
+		}
+	}
+	return nextToBlank;
+}
+
+//Does a search if next to any transparent pixels when at Bottom edge
+bool findColourOfNeighbourAtBottomEdge(int pixelPosition, int arrayWidth, int arrayLength, Uint32* bufferArray) {
+	bool nextToBlank = false;
+	Uint32 noPixelColour = testTexture.mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
+	if (isAtLeftEdge(pixelPosition, arrayWidth)) {
+		if (bufferArray[pixelPosition + 1] == noPixelColour || bufferArray[pixelPosition - arrayWidth] == noPixelColour) {
+			nextToBlank = true;
+		}
+	}
+	else if (isAtRightEdge(pixelPosition, arrayWidth)) {
+		if (bufferArray[pixelPosition - 1] == noPixelColour || bufferArray[pixelPosition - arrayWidth] == noPixelColour) {
+			nextToBlank = true;
+		}
+	}
+	else {
+		if (bufferArray[pixelPosition + 1] == noPixelColour || bufferArray[pixelPosition - 1] == noPixelColour || bufferArray[pixelPosition - arrayWidth] == noPixelColour) {
+			nextToBlank = true;
+		}
+	}
+	return nextToBlank;
+}
+
+void splitTextureAtEdge() {
+	//Get the texture pixels
+	Uint32* pixels = testTexture.getPixels32();
+	//This is the transparent pixel colour
+	Uint32 noPixelColour = testTexture.mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
+	//A placement int that gets the length of the pixel 1D array
 	int arrayLength = testTexture.getWidth() * testTexture.getHeight();
+	//A bitmap that remembers if we visited a pixel before or not.
 	int* visitedTracker = new int[arrayLength];
+	//An array that stores the two directions that you move in.
 	Uint32 directions[2];
+	//Initialising visitedTracker to all 0.
+	memset(visitedTracker, 0, arrayLength * sizeof(int));
+	std::vector<Uint32> possibleStarts;
+	//Top edge
+	for (int i = 0; i < testTexture.getWidth(); i++) {
+		if (pixels[i] != noPixelColour && findColourOfNeighbourAtTopEdge(i, testTexture.getWidth(), arrayLength, pixels) != false) {
+			possibleStarts.push_back(i);
+		}
+	}
+	//Bottom edge
+	for (int i = arrayLength - testTexture.getWidth(); i < arrayLength; i++) {
+		if (pixels[i] != noPixelColour && findColourOfNeighbourAtBottomEdge(i, testTexture.getWidth(), arrayLength, pixels) != false) {
+			possibleStarts.push_back(i);
+		}
+	}
+	//Left edge
+	for (int i = 0; i < arrayLength - testTexture.getWidth(); i += testTexture.getWidth()) {
+		if (pixels[i] != noPixelColour && findColourOfNeighbourAtLeftEdge(i, testTexture.getWidth(), arrayLength, pixels) != false) {
+			possibleStarts.push_back(i);
+		}
+	}
+	//Right edge
+	for (int i = testTexture.getWidth() - 1; i < arrayLength; i += testTexture.getWidth()) {
+		if (pixels[i] != noPixelColour && findColourOfNeighbourAtRightEdge(i, testTexture.getWidth(), arrayLength, pixels) != false) {
+			possibleStarts.push_back(i);
+		}
+	}
+	for (int value : possibleStarts) {
+		printf("%i\n", value);
+	}
+	printf("Texture width: %i\n", testTexture.getWidth());
+	printf("Pixel Buffer Size:%i\n", arrayLength);
+	printf("Edge count: %i\n", possibleStarts.size());
+}
+
+void splitTexture() {
+	//Get the texture pixels
+	Uint32* pixels = testTexture.getPixels32();
+	//This is the transparent pixel colour
+	Uint32 noPixelColour = testTexture.mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
+	//A placement int that gets the length of the pixel 1D array
+	int arrayLength = testTexture.getWidth() * testTexture.getHeight();
+	//A bitmap that remembers if we visited a pixel before or not.
+	int* visitedTracker = new int[arrayLength];
+	//An array that stores the two directions that you move in.
+	Uint32 directions[2];
+	//Initialising visitedTracker to all 0.
 	memset(visitedTracker, 0, arrayLength * sizeof(int));
 
+	//Wouldn't it be better to find all of the ones that start at an edge first? 
+	//And then look for those that start in the centre of the image. 
+	//Might reduce computation time like that. 
+	//Lets try doing that in a seperate method.
+
+	//Looping over every element in the pixel array.
 	for (int i = 0; i < arrayLength; i++) {
-		//printf("%i\n",i);
+		//If we have visited them, or they are transparent, or they are not themselves coloured 
+		//and next to transparent pixels, set to visited and ignore.
 		if (visitedTracker[i] == 1 || pixels[i] == noPixelColour || findColoursOfNeighbours(i, testTexture.getWidth(), arrayLength, pixels) == false) {
 			visitedTracker[i] = 1;
 			continue;
 		}
 		else {
+			//Sanity check bool.
 			if (visitedTracker[i] == 1) {
 				printf("How have we already visited this place?");
 			}
+			//Set them to visited.
 			visitedTracker[i] = 1;
 			//printf("The contourFinderWorks\n");
 			if (!isAtEdge(i, testTexture.getWidth(), arrayLength)) {
@@ -496,24 +531,21 @@ void splitTexture() {
 						}
 					}
 				}
-				printf("Vector Size: %i\n", possiblePursuits.size());
+				//printf("Vector Size: %i\n", possiblePursuits.size());
 				if (isSurroundedByErased) {
 					printf("We have a single pixel islet\n");
 				}
 				if (possiblePursuits.size() > 1) {
 					directions[0] = possiblePursuits[0];
 					directions[1] = possiblePursuits[1];
+					std::vector<Uint32> pixelsToErase;
 
-					//This shit doesn't cause infinite loops anymore
-					//But it still loops too much
-					//Why?
-					//That's now fixed. Now there's just an out of bounds error on a vector and idk why. 
-					//It may be because I'm constanly erasing memory from directions. Fixed
-					while (directions[0] == directions[1]) {
+					while (directions[0] != directions[1]) {
 						for (Uint32& direction : directions) {
 							if (direction != -1) {
 								visitedTracker[direction] = 1;
-								pixels[direction] = testTexture.mapRGBA(255, 165, 0, 1);//This line isn't working
+								pixelsToErase.push_back(direction);
+								pixels[direction] = testTexture.mapRGBA(255, 165, 0, 1);
 								//printf("%i\n", direction);
 								int* neighbourArr = getNeighbours(direction, testTexture.getWidth());
 								//std::vector<Uint32> possiblePursuit;
@@ -549,16 +581,6 @@ void splitTexture() {
 			}
 		}
 	}
-
-	/*for (int i = 0; i < arrayLength; i++) {
-		if (i % testTexture.getWidth() == testTexture.getWidth() - 1) {
-			printf("%i\n", visitedTracker[i]);
-		}
-		else {
-			printf("%i", visitedTracker[i]);
-		}
-	}*/
-
 	testTexture.loadFromPixels();
 	delete[] visitedTracker;
 }
@@ -680,7 +702,8 @@ int main(int argc, char* args[]) {
 					case SDL_MOUSEBUTTONUP:
 						if (e.button.button == SDL_BUTTON_LEFT)
 							//contourFinder();
-							splitTexture();
+							//splitTexture();
+							splitTextureAtEdge();
 							leftMouseButtonDown = false;
 						if (e.button.button == SDL_BUTTON_RIGHT)
 							rightMouseButtonDown = false;
