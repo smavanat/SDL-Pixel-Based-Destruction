@@ -3,6 +3,7 @@
 #include<SDL_image.h>
 #include<iostream>
 #include <vector>
+#include <queue>
 
 const int SCREEN_WIDTH = 640;
 const int SCREEN_HEIGHT = 480;
@@ -221,7 +222,7 @@ void erase(int x, int y) {
 			{
 				int dx = scale - w; // horizontal offset
 				int dy = scale - h; // vertical offset
-				if ((dx * dx + dy * dy) <= (scale * scale)&&(x+dx<testTexture.getWidth()) && (x+dx > -1) && (y + dy < testTexture.getHeight()) && (y + dy > -1))
+				if ((dx * dx + dy * dy) < (scale * scale)&&(x+dx<testTexture.getWidth()) && (x+dx > -1) && (y + dy < testTexture.getHeight()) && (y + dy > -1))
 				{
 					pixels[(y + dy) * testTexture.getWidth() + (x + dx)] = transparent;
 				}
@@ -276,7 +277,7 @@ bool isAtRightEdge(int pixelPosition, int arrayWidth) {
 	return false;
 }
 
-int* getNeighbours(int pixelPosition, int arrayWidth) {
+int* getNeighbours(int pixelPosition, int arrayWidth, int arrayLength) {
 	int* neighbourArr = new int[8];
 	int index = 0;
 	for (int i = -1; i < 2; i++) {
@@ -290,62 +291,51 @@ int* getNeighbours(int pixelPosition, int arrayWidth) {
 			}
 		}
 	}
+
+	//If we are at an edge, set the direction associated with that edge to -1, as there can be no neighbour there
+	if (isAtTopEdge(pixelPosition, arrayWidth)) {
+		neighbourArr[0] = -1;
+		neighbourArr[1] = -1;
+		neighbourArr[2] = -1;
+	}
+	if (isAtRightEdge(pixelPosition, arrayWidth)) {
+		neighbourArr[2] = -1;
+		neighbourArr[4] = -1;
+		neighbourArr[7] = -1;
+	}
+	if (isAtBottomEdge(pixelPosition, arrayWidth, arrayLength)) {
+		neighbourArr[5] = -1;
+		neighbourArr[6] = -1;
+		neighbourArr[7] = -1;
+	}
+	if (isAtLeftEdge(pixelPosition, arrayWidth)) {
+		neighbourArr[0] = -1;
+		neighbourArr[3] = -1;
+		neighbourArr[5] = -1;
+	}
 	return neighbourArr;
 }
-
-//Returns if next to blank pixel. Only for those pixels that are not an edge.
-bool findColoursOfNeighbours(int pixelPosition, int arrayWidth, int arrayLength, Uint32* bufferArray) {
-	bool nextToBlank = false;
-	//Transparent pixel colour.
-	Uint32 noPixelColour = testTexture.mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
-
-	for (int i = -1; i < 2; i++) {
-		for (int j = -1; j < 2; j++) {
-			if (bufferArray[pixelPosition + (i * arrayWidth) + j] == noPixelColour) {
-				nextToBlank = true;
-				break;
-			}
-		}
-		if (nextToBlank) {
-			break;
-		}
+int* getCardinalNeighbours(int pixelPosition, int arrayWidth, int arrayLength) {
+	int* neighbourArr = new int[4];
+	//Sets the values for each of the directions in the order top, right, bottom, left
+	neighbourArr[0] = pixelPosition - arrayWidth;
+	neighbourArr[1] = pixelPosition + 1;
+	neighbourArr[2] = pixelPosition + arrayWidth;
+	neighbourArr[3] = pixelPosition - 1;
+	//If we are at an edge, set the direction associated with that edge to -1, as there can be no neighbour there
+	if (isAtTopEdge(pixelPosition, arrayWidth)) {
+		neighbourArr[0] = -1;
 	}
-	return nextToBlank;
-}
-
-//Highlights the countours of erased pixels.
-void contourFinder() {
-	Uint32* pixels = testTexture.getPixels32();
-	Uint32 noPixelColour = testTexture.mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
-	Uint32 contourColour = testTexture.mapRGBA(0xFF, 0x00, 0xFF, 0xFF);
-	//Uint32 contourColour = testTexture.mapRGBA(255, 192, 203, 0x00);
-	for (int i = 0; i < testTexture.getWidth() * testTexture.getHeight(); i++) {
-		//printf("%i\n",i);
-		if (pixels[i] == noPixelColour || findColoursOfNeighbours(i, testTexture.getWidth(), testTexture.getWidth() * testTexture.getHeight(), pixels) == false) {
-			continue;
-		}
-		else {
-			//printf("The contourFinderWorks\n");
-			pixels[i] = contourColour;
-		}
+	if (isAtRightEdge(pixelPosition, arrayWidth)) {
+		neighbourArr[1] = -1;
 	}
-	testTexture.loadFromPixels();
-}
-
-//Not currently used.
-void directionTraveller(Uint32 direction, int arrayLength, Uint32* pixels, int tracker[], Uint32 noPixelColour) {
-	int* neighbourArr = getNeighbours(direction, testTexture.getWidth());
-	std::vector<Uint32> possiblePursuit;
-	for (int j = 0; j < 8; j++) {
-		if (pixels[neighbourArr[j]] != noPixelColour) {
-			if (tracker[neighbourArr[j]] == 1 && findColoursOfNeighbours(neighbourArr[j], testTexture.getWidth(), arrayLength, pixels)) {
-				possiblePursuit.push_back(neighbourArr[j]);
-			}
-		}
+	if (isAtBottomEdge(pixelPosition, arrayWidth, arrayLength)) {
+		neighbourArr[2] = -1;
 	}
-	if (!possiblePursuit.empty() && !isAtEdge(direction, testTexture.getWidth(), arrayLength)) {
-		direction = possiblePursuit[0];
+	if (isAtLeftEdge(pixelPosition, arrayWidth)) {
+		neighbourArr[3] = -1;
 	}
+	return neighbourArr;
 }
 
 //Does a search if next to any transparent pixels when at left edge
@@ -436,11 +426,216 @@ bool findColourOfNeighbourAtBottomEdge(int pixelPosition, int arrayWidth, int ar
 	return nextToBlank;
 }
 
+bool findColoursOfNeighbours(int pixelPosition, int arrayWidth, int arrayLength, Uint32* bufferArray) {
+	bool nextToBlank = false;
+	Uint32 noPixelColour = testTexture.mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
+	int* neighbourArr = getNeighbours(pixelPosition, arrayWidth, arrayLength);
+	for (int i = 0; i < 8; i++) {
+		if (neighbourArr[i] != -1 && bufferArray[neighbourArr[i]] == noPixelColour) {
+			nextToBlank = true;
+		}
+	}
+	return nextToBlank;
+}
+
+//Returns if next to blank pixel. Only for those pixels that are not an edge.
+bool findColoursOfNotEdgeNeighbours(int pixelPosition, int arrayWidth, int arrayLength, Uint32* bufferArray) {
+	bool nextToBlank = false;
+	//Transparent pixel colour.
+	Uint32 noPixelColour = testTexture.mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
+
+	for (int i = -1; i < 2; i++) {
+		for (int j = -1; j < 2; j++) {
+			if (bufferArray[pixelPosition + (i * arrayWidth) + j] == noPixelColour) {
+				nextToBlank = true;
+				break;
+			}
+		}
+		if (nextToBlank) {
+			break;
+		}
+	}
+	return nextToBlank;
+}
+
+//Highlights the countours of erased pixels.
+//Do this, and then use flood-filled algorithm to make new textures? and erase them from the old one 
+//each time, and then eventually delete the initial texture.
+//Could possibly work. Each new texture would initially be the same size as the old texture,
+//And then we would find the highest (by counting how many pairs of contour vertices there are) and 
+//widest point (by counting the max difference between two contour vertices).
+//Create an array of hieght*width, and copy everything into that, filling in the blanks with whitespace.
+//I think the initial copy would just be the index, and once we had sorted everything out, then we would copy
+//over the actual colour data. That would allow us to effectively account for the relative positions of the 
+//pixels to each other.
+void contourFinder(Uint32* pixels, Uint32 noPixelColour, int*visitedTracker) {
+	//Uint32 contourColour = testTexture.mapRGBA(0xFF, 0x00, 0xFF, 0xFF);
+	for (int i = 0; i < testTexture.getWidth() * testTexture.getHeight(); i++) {
+		if (pixels[i] == noPixelColour || !findColoursOfNeighbours(i, testTexture.getWidth(), testTexture.getWidth() * testTexture.getHeight(), pixels)) {
+			continue;
+		}
+		else {
+			//printf("The contourFinderWorks\n");
+			//pixels[i] = contourColour;
+			visitedTracker[i] = 2;
+		}
+	}
+}
+
+
+//void directionTraveller(int index, int arrayLength, Uint32* pixels, int* visitedArray) {
+//	//int arrayLength = testTexture.getWidth() * testTexture.getHeight();
+//	//This is the transparent pixel colour
+//	Uint32 noPixelColour = testTexture.mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
+//	//Colour for outlines. A debugging tool
+//	Uint32 contourColour = testTexture.mapRGBA(0xFF, 0x00, 0xFF, 0xFF);
+//	int currentIndex = index;
+//
+//	do {
+//		//Essentially, I think the neighbour we want to get is the one which is returned in getNeighbours, 
+//		//but whose getCardinalNeighbours are not all coloured.
+//		//functions both put them with blank neighbours.
+//		//In other words, use getNeighbours to find all of the possible neighbours of the current one,
+//		//but use getCardinalNeighbours in findColoursOfNeighbours to get the next one.
+//		//Uhh no? Apparently the reverse works? Why?????
+//		printf("%i\n", currentIndex);
+//		pixels[currentIndex] = contourColour;
+//		visitedArray[currentIndex] = 1;
+//		int oldIndex = currentIndex;
+//		int* neighbourArr = getCardinalNeighbours(currentIndex, testTexture.getWidth(), arrayLength);
+//		for (int i = 0; i < 4; i++) {
+//			if (neighbourArr[i] == -1 || pixels[neighbourArr[i]] == noPixelColour || visitedArray[neighbourArr[i]] == 1) {
+//				continue;
+//			}
+//			else {
+//				int* temp = getNeighbours(neighbourArr[i], testTexture.getWidth(), arrayLength);
+//				for (int j = 0; j < 8; j++) {
+//					if (pixels[temp[j]] == noPixelColour) {
+//						currentIndex = neighbourArr[i];
+//						break;
+//					}
+//				}
+//				if (currentIndex != oldIndex) {
+//					break;
+//				}
+//			}
+//		}
+//	} while (visitedArray[currentIndex] != 1);
+//
+//	//Strange bug. This only works for one of the two sides of the erased part of the texture.
+//	do {
+//		visitedArray[currentIndex] = 1;
+//		pixels[currentIndex] = contourColour;
+//		int* temp = getCardinalNeighbours(currentIndex, testTexture.getWidth(), arrayLength);
+//		
+//		printf("Doing something\n");
+//		for (int i = 0; i < 4; i++) {
+//			printf("temp[%i] is %i\n", i, temp[i]);
+//			if (temp[i] == -1) {
+//				continue;
+//			}
+//			else if (isAtEdge(temp[i], testTexture.getWidth(), arrayLength) && pixels[temp[i]] != noPixelColour) {
+//				printf("We found one\n");
+//				currentIndex = temp[i];
+//			}
+//		}
+//	} while (visitedArray[currentIndex] != 1);
+//}
+
+//Crappy augmented flood-fill algorithm implementation taken from here: https://www.geeksforgeeks.org/flood-fill-algorithm/
+std::vector<int> bfs(int index, int arrayWidth, int arrayLength, Uint32* pixels, Uint32 noPixelColour, int* visitedTracker) {
+	std::vector<int> indexes;
+	std::queue<int> q;
+
+	indexes.push_back(index);
+	q.push(index);
+	//Need to use the visited tracker otherwise the program doesn't know if we have visited a pixel or not
+	//so it keeps looping infinitely
+	visitedTracker[index] = 1;
+
+	while (!q.empty()) {
+		int currentIndex = q.front();
+		q.pop();
+		if (!isAtTopEdge(currentIndex, arrayWidth) && pixels[currentIndex - arrayWidth] != noPixelColour && visitedTracker[currentIndex - arrayWidth] == 0) {
+			indexes.push_back(currentIndex - arrayWidth);
+			q.push(currentIndex - arrayWidth);
+			visitedTracker[currentIndex - arrayWidth] = 1;
+		}
+		if (!isAtLeftEdge(currentIndex, arrayWidth) && pixels[currentIndex - 1] != noPixelColour && visitedTracker[currentIndex - 1] == 0) {
+			indexes.push_back(currentIndex - 1);
+			q.push(currentIndex - 1);
+			visitedTracker[currentIndex - 1] = 1;
+		}
+		if (!isAtBottomEdge(currentIndex, arrayWidth, arrayLength) && pixels[currentIndex + arrayWidth] != noPixelColour && visitedTracker[currentIndex + arrayWidth] == 0) {
+			indexes.push_back(currentIndex + arrayWidth);
+			q.push(currentIndex + arrayWidth);
+			visitedTracker[currentIndex + arrayWidth] = 1;
+		}
+		if (!isAtRightEdge(currentIndex, arrayWidth) && pixels[currentIndex + 1] != noPixelColour && visitedTracker[currentIndex + 1] == 0) {
+			indexes.push_back(currentIndex + 1);
+			q.push(currentIndex + 1);
+			visitedTracker[currentIndex + 1] = 1;
+		}
+	}
+
+	std::sort(indexes.begin(), indexes.end());
+
+	return indexes;
+}
+
+Uint32* constructNewPixelBuffer(std::vector<int> indexes, int*visitedTracker, Uint32 noPixelColour, int arrayWidth) {
+	Uint32* newPixelBuffer;
+	int width = 0;
+	int height = 1;
+
+	int startLinePos = indexes[0];
+	int endLinePos = 0;
+	
+	for (int i = 0; i < indexes.size()-1; i++) {
+		if (i != 0) {
+			if (floor(indexes[i+1]/arrayWidth) != floor(indexes[i-1]/arrayWidth)) {
+				height += floor(indexes[i + 1] / arrayWidth) - floor(indexes[i - 1] / arrayWidth);
+			}
+			//if the pixel ahead of the current one is on the same row but the one behind is on a different row we have a startrow
+			if ((floor(indexes[i + 1] / arrayWidth) == floor(indexes[i] / arrayWidth)) && (floor(indexes[i - 1] / arrayWidth) < floor(indexes[i] / arrayWidth))) {
+				startLinePos = indexes[i];
+			}
+			//if the pixel behind the current one is on the same row but the one ahead is on a new row, we have an endrow
+			if ((floor(indexes[i - 1] / arrayWidth) == floor(indexes[i] / arrayWidth)) && (floor(indexes[i + 1] / arrayWidth) > floor(indexes[i] / arrayWidth))) {
+				endLinePos = indexes[i];
+				//Calculate width only once we have a new endrow.
+				if (width < endLinePos - startLinePos) {
+					width = endLinePos - startLinePos;
+				}
+			}
+		}
+	}
+	height = height / 2; //Because height is updated at the start of a row and at the end of a row.
+	width = width + 1; //No way to test the width, so I pray this is the correct value. Otheriwise I'm fucked.
+	//Rough fix. Think this should work because it wasn't getting height properly if it was on the bottom row.
+	if (isAtBottomEdge(indexes[indexes.size() - 1], arrayWidth, testTexture.getHeight() * testTexture.getWidth())) {
+		height +=1;
+	}
+
+	int actualHeight = floor(indexes[indexes.size() - 1] / arrayWidth);
+
+	printf("Actual Height:%i\n", actualHeight);
+	printf("Height: %i\n", height);
+	printf("Width: %i\n", width);
+	printf("%i\n", indexes[indexes.size() - 1]);
+	newPixelBuffer = new Uint32[width * height];
+	memset(newPixelBuffer, noPixelColour, width * height * sizeof(Uint32));
+
+	return newPixelBuffer;
+}
+
 void splitTextureAtEdge() {
 	//Get the texture pixels
 	Uint32* pixels = testTexture.getPixels32();
 	//This is the transparent pixel colour
 	Uint32 noPixelColour = testTexture.mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
+	//Colour for outlines. A debugging tool
+	Uint32 contourColour = testTexture.mapRGBA(0xFF, 0x00, 0xFF, 0xFF);
 	//A placement int that gets the length of the pixel 1D array
 	int arrayLength = testTexture.getWidth() * testTexture.getHeight();
 	//A bitmap that remembers if we visited a pixel before or not.
@@ -449,140 +644,26 @@ void splitTextureAtEdge() {
 	Uint32 directions[2];
 	//Initialising visitedTracker to all 0.
 	memset(visitedTracker, 0, arrayLength * sizeof(int));
-	std::vector<Uint32> possibleStarts;
+	std::vector<int> possibleStarts;
+	
+	//contourFinder(pixels, noPixelColour, visitedTracker);
+
 	//Top edge
 	for (int i = 0; i < testTexture.getWidth(); i++) {
-		if (pixels[i] != noPixelColour && findColourOfNeighbourAtTopEdge(i, testTexture.getWidth(), arrayLength, pixels) != false) {
-			possibleStarts.push_back(i);
+		if (pixels[i] != noPixelColour) {
+			possibleStarts = bfs(i, testTexture.getWidth(), arrayLength, pixels, noPixelColour, visitedTracker);
+			break;
 		}
 	}
-	//Bottom edge
-	for (int i = arrayLength - testTexture.getWidth(); i < arrayLength; i++) {
-		if (pixels[i] != noPixelColour && findColourOfNeighbourAtBottomEdge(i, testTexture.getWidth(), arrayLength, pixels) != false) {
-			possibleStarts.push_back(i);
-		}
-	}
-	//Left edge
-	for (int i = 0; i < arrayLength - testTexture.getWidth(); i += testTexture.getWidth()) {
-		if (pixels[i] != noPixelColour && findColourOfNeighbourAtLeftEdge(i, testTexture.getWidth(), arrayLength, pixels) != false) {
-			possibleStarts.push_back(i);
-		}
-	}
-	//Right edge
-	for (int i = testTexture.getWidth() - 1; i < arrayLength; i += testTexture.getWidth()) {
-		if (pixels[i] != noPixelColour && findColourOfNeighbourAtRightEdge(i, testTexture.getWidth(), arrayLength, pixels) != false) {
-			possibleStarts.push_back(i);
-		}
-	}
-	for (int value : possibleStarts) {
-		printf("%i\n", value);
-	}
+	printf("bfs size: %i\n", possibleStarts.size());
+	/*for (int i = 0; i < possibleStarts.size(); i++) {
+		printf("%i\n", possibleStarts[i]);
+	}*/
+	constructNewPixelBuffer(possibleStarts, visitedTracker, noPixelColour, testTexture.getWidth());
 	printf("Texture width: %i\n", testTexture.getWidth());
 	printf("Pixel Buffer Size:%i\n", arrayLength);
-	printf("Edge count: %i\n", possibleStarts.size());
-}
-
-void splitTexture() {
-	//Get the texture pixels
-	Uint32* pixels = testTexture.getPixels32();
-	//This is the transparent pixel colour
-	Uint32 noPixelColour = testTexture.mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
-	//A placement int that gets the length of the pixel 1D array
-	int arrayLength = testTexture.getWidth() * testTexture.getHeight();
-	//A bitmap that remembers if we visited a pixel before or not.
-	int* visitedTracker = new int[arrayLength];
-	//An array that stores the two directions that you move in.
-	Uint32 directions[2];
-	//Initialising visitedTracker to all 0.
-	memset(visitedTracker, 0, arrayLength * sizeof(int));
-
-	//Wouldn't it be better to find all of the ones that start at an edge first? 
-	//And then look for those that start in the centre of the image. 
-	//Might reduce computation time like that. 
-	//Lets try doing that in a seperate method.
-
-	//Looping over every element in the pixel array.
-	for (int i = 0; i < arrayLength; i++) {
-		//If we have visited them, or they are transparent, or they are not themselves coloured 
-		//and next to transparent pixels, set to visited and ignore.
-		if (visitedTracker[i] == 1 || pixels[i] == noPixelColour || findColoursOfNeighbours(i, testTexture.getWidth(), arrayLength, pixels) == false) {
-			visitedTracker[i] = 1;
-			continue;
-		}
-		else {
-			//Sanity check bool.
-			if (visitedTracker[i] == 1) {
-				printf("How have we already visited this place?");
-			}
-			//Set them to visited.
-			visitedTracker[i] = 1;
-			//printf("The contourFinderWorks\n");
-			if (!isAtEdge(i, testTexture.getWidth(), arrayLength)) {
-				//printf("We're not at an edge at %i\n", i);
-				//pixels[i] = testTexture.mapRGBA(255, 165, 0, 1);
-				int* neighbourArr = getNeighbours(i, testTexture.getWidth());
-				std::vector<Uint32> possiblePursuits;
-				bool isSurroundedByErased = true;
-				for (int j = 0; j < 8; j++) {
-					if (pixels[neighbourArr[j]] != noPixelColour) {
-						isSurroundedByErased = false;
-						if (visitedTracker[neighbourArr[j]] == 0 && findColoursOfNeighbours(neighbourArr[j], testTexture.getWidth(), arrayLength, pixels)) {
-							possiblePursuits.push_back(neighbourArr[j]);
-						}
-					}
-				}
-				//printf("Vector Size: %i\n", possiblePursuits.size());
-				if (isSurroundedByErased) {
-					printf("We have a single pixel islet\n");
-				}
-				if (possiblePursuits.size() > 1) {
-					directions[0] = possiblePursuits[0];
-					directions[1] = possiblePursuits[1];
-					std::vector<Uint32> pixelsToErase;
-
-					while (directions[0] != directions[1]) {
-						for (Uint32& direction : directions) {
-							if (direction != -1) {
-								visitedTracker[direction] = 1;
-								pixelsToErase.push_back(direction);
-								pixels[direction] = testTexture.mapRGBA(255, 165, 0, 1);
-								//printf("%i\n", direction);
-								int* neighbourArr = getNeighbours(direction, testTexture.getWidth());
-								//std::vector<Uint32> possiblePursuit;
-								for (int j = 0; j < 8; j++) {
-									//printf("%i\n", neighbourArr[i]);
-									if (pixels[neighbourArr[j]] != noPixelColour) {
-										if (visitedTracker[neighbourArr[j]] == 0 && findColoursOfNeighbours(neighbourArr[j], testTexture.getWidth(), arrayLength, pixels)) {
-											//possiblePursuit.push_back(neighbourArr[j]);
-											direction = neighbourArr[j];
-										}
-									}
-								}
-								if (isAtEdge(direction, testTexture.getWidth(), arrayLength)) {
-									direction = -1;
-								}
-								delete[] neighbourArr;
-							}
-							//printf("Visited Tracker direction status: %i\n",visitedTracker[direction]);
-							
-							//printf("%i\n", direction);
-						}
-						if (directions[0] == directions[1]/*directions.empty()*/) {
-							printf("We reached an edge\n");
-							break;
-						}
-					}
-					printf("Infinite loop broken!!!!!!\n");
-				}
-			}
-			else {
-				//printf("We have an edge case at %i\n", i);
-				pixels[i] = testTexture.mapRGBA(0xFF, 0x00, 0xFF, 0xFF);
-			}
-		}
-	}
+	//printf("Edge count: %i\n", possibleStarts.size());
 	testTexture.loadFromPixels();
-	delete[] visitedTracker;
 }
 
 bool init()
