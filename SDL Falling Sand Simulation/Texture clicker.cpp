@@ -4,6 +4,7 @@
 #include<iostream>
 #include <vector>
 #include <queue>
+#include <algorithm>
 
 //TODO: Make the new images appear where they are supposed to (figure out relative origin shenanigans). Done
 //		Make the program be able to figure out which texture needs to be erased from. Done
@@ -76,7 +77,6 @@ Texture testTexture = Texture(240, 190);
 //are being copied over to a new location and the originals deleted.
 //This means that the old pointers for surfacePixels etc. are being invalidated, hence the memory write errors.
 std::vector<Texture*> textures;
-std::vector<Texture*> toBeFreed;
 
 int scale = 10;
 
@@ -110,7 +110,7 @@ Texture::Texture(int x, int y, int w, int h, Uint32* pixels) {
 	setOrigin(x, y);
 	needsSplitting = false;
 	surfacePixels = SDL_CreateRGBSurfaceFrom(pixels, w, h, 32, w*4, 0, 0, 0, 0);//pitch is the texture width * pixelsize in bytes
-	surfacePixels = SDL_ConvertSurfaceFormat(surfacePixels, SDL_PIXELFORMAT_ARGB8888, 0);
+	//surfacePixels = SDL_ConvertSurfaceFormat(surfacePixels, SDL_PIXELFORMAT_ARGB8888, 0);
 	loadFromPixels(); //Otherwise the texture does not exist.
 }
 
@@ -405,116 +405,6 @@ int* getNeighbours(int pixelPosition, int arrayWidth, int arrayLength) {
 	}
 	return neighbourArr;
 }
-int* getCardinalNeighbours(int pixelPosition, int arrayWidth, int arrayLength) {
-	int* neighbourArr = new int[4];
-	//Sets the values for each of the directions in the order top, right, bottom, left
-	neighbourArr[0] = pixelPosition - arrayWidth;
-	neighbourArr[1] = pixelPosition + 1;
-	neighbourArr[2] = pixelPosition + arrayWidth;
-	neighbourArr[3] = pixelPosition - 1;
-	//If we are at an edge, set the direction associated with that edge to -1, as there can be no neighbour there
-	if (isAtTopEdge(pixelPosition, arrayWidth)) {
-		neighbourArr[0] = -1;
-	}
-	if (isAtRightEdge(pixelPosition, arrayWidth)) {
-		neighbourArr[1] = -1;
-	}
-	if (isAtBottomEdge(pixelPosition, arrayWidth, arrayLength)) {
-		neighbourArr[2] = -1;
-	}
-	if (isAtLeftEdge(pixelPosition, arrayWidth)) {
-		neighbourArr[3] = -1;
-	}
-	return neighbourArr;
-}
-
-//Does a search if next to any transparent pixels when at left edge
-bool findColourOfNeighbourAtLeftEdge(int pixelPosition, int arrayWidth, int arrayLength, Uint32* bufferArray) {
-	bool nextToBlank = false;
-	Uint32 noPixelColour = testTexture.mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
-	if (isAtTopEdge(pixelPosition, arrayWidth)) {
-		if (bufferArray[pixelPosition + 1] == noPixelColour || bufferArray[pixelPosition + arrayWidth] == noPixelColour) {
-			nextToBlank = true;
-		}
-	}
-	else if (isAtBottomEdge(pixelPosition, arrayWidth, arrayLength)) {
-		if (bufferArray[pixelPosition + 1] == noPixelColour || bufferArray[pixelPosition - arrayWidth] == noPixelColour) {
-			nextToBlank = true;
-		}
-	}
-	else {
-		if (bufferArray[pixelPosition + 1] == noPixelColour || bufferArray[pixelPosition - arrayWidth] == noPixelColour || bufferArray[pixelPosition + arrayWidth] == noPixelColour) {
-			nextToBlank = true;
-		}
-	}
-	return nextToBlank;
-}
-
-//Does a search if next to any transparent pixels when at left edge
-bool findColourOfNeighbourAtRightEdge(int pixelPosition, int arrayWidth, int arrayLength, Uint32* bufferArray) {
-	bool nextToBlank = false;
-	Uint32 noPixelColour = testTexture.mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
-	if (isAtTopEdge(pixelPosition, arrayWidth)) {
-		if (bufferArray[pixelPosition - 1] == noPixelColour || bufferArray[pixelPosition + arrayWidth] == noPixelColour) {
-			nextToBlank = true;
-		}
-	}
-	else if (isAtBottomEdge(pixelPosition, arrayWidth, arrayLength)) {
-		if (bufferArray[pixelPosition - 1] == noPixelColour || bufferArray[pixelPosition - arrayWidth] == noPixelColour) {
-			nextToBlank = true;
-		}
-	}
-	else {
-		if (bufferArray[pixelPosition - 1] == noPixelColour || bufferArray[pixelPosition - arrayWidth] == noPixelColour || bufferArray[pixelPosition + arrayWidth] == noPixelColour) {
-			nextToBlank = true;
-		}
-	}
-	return nextToBlank;
-}
-
-//Does a search if next to any transparent pixels when at Top edge
-bool findColourOfNeighbourAtTopEdge(int pixelPosition, int arrayWidth, int arrayLength, Uint32* bufferArray) {
-	bool nextToBlank = false;
-	Uint32 noPixelColour = testTexture.mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
-	if (isAtLeftEdge(pixelPosition, arrayWidth)) {
-		if (bufferArray[pixelPosition + 1] == noPixelColour || bufferArray[pixelPosition + arrayWidth] == noPixelColour) {
-			nextToBlank = true;
-		}
-	}
-	else if (isAtRightEdge(pixelPosition, arrayWidth)) {
-		if (bufferArray[pixelPosition - 1] == noPixelColour || bufferArray[pixelPosition + arrayWidth] == noPixelColour) {
-			nextToBlank = true;
-		}
-	}
-	else {
-		if (bufferArray[pixelPosition + 1] == noPixelColour || bufferArray[pixelPosition - 1] == noPixelColour || bufferArray[pixelPosition + arrayWidth] == noPixelColour) {
-			nextToBlank = true;
-		}
-	}
-	return nextToBlank;
-}
-
-//Does a search if next to any transparent pixels when at Bottom edge
-bool findColourOfNeighbourAtBottomEdge(int pixelPosition, int arrayWidth, int arrayLength, Uint32* bufferArray) {
-	bool nextToBlank = false;
-	Uint32 noPixelColour = testTexture.mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
-	if (isAtLeftEdge(pixelPosition, arrayWidth)) {
-		if (bufferArray[pixelPosition + 1] == noPixelColour || bufferArray[pixelPosition - arrayWidth] == noPixelColour) {
-			nextToBlank = true;
-		}
-	}
-	else if (isAtRightEdge(pixelPosition, arrayWidth)) {
-		if (bufferArray[pixelPosition - 1] == noPixelColour || bufferArray[pixelPosition - arrayWidth] == noPixelColour) {
-			nextToBlank = true;
-		}
-	}
-	else {
-		if (bufferArray[pixelPosition + 1] == noPixelColour || bufferArray[pixelPosition - 1] == noPixelColour || bufferArray[pixelPosition - arrayWidth] == noPixelColour) {
-			nextToBlank = true;
-		}
-	}
-	return nextToBlank;
-}
 
 bool findColoursOfNeighbours(int pixelPosition, int arrayWidth, int arrayLength, Uint32* bufferArray) {
 	bool nextToBlank = false;
@@ -523,26 +413,6 @@ bool findColoursOfNeighbours(int pixelPosition, int arrayWidth, int arrayLength,
 	for (int i = 0; i < 8; i++) {
 		if (neighbourArr[i] != -1 && bufferArray[neighbourArr[i]] == noPixelColour) {
 			nextToBlank = true;
-		}
-	}
-	return nextToBlank;
-}
-
-//Returns if next to blank pixel. Only for those pixels that are not an edge.
-bool findColoursOfNotEdgeNeighbours(int pixelPosition, int arrayWidth, int arrayLength, Uint32* bufferArray) {
-	bool nextToBlank = false;
-	//Transparent pixel colour.
-	Uint32 noPixelColour = testTexture.mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
-
-	for (int i = -1; i < 2; i++) {
-		for (int j = -1; j < 2; j++) {
-			if (bufferArray[pixelPosition + (i * arrayWidth) + j] == noPixelColour) {
-				nextToBlank = true;
-				break;
-			}
-		}
-		if (nextToBlank) {
-			break;
 		}
 	}
 	return nextToBlank;
@@ -611,39 +481,34 @@ std::vector<int> bfs(int index, int arrayWidth, int arrayLength, Uint32* pixels,
 void constructNewPixelBuffer(std::vector<int> indexes, int*visitedTracker, Uint32*pixels, Uint32 noPixelColour, int arrayWidth, Texture* texture) {
 	Uint32* newPixelBuffer;
 	int width = 0;
-	//Need to do this +1 bs otherwise the program has a hissy fit for some reason. I substract it later.
 	int height = (int)(indexes.back() / arrayWidth) - (int)(indexes.front() / arrayWidth)+1; 
 
 	int startLinePos = indexes[0] % arrayWidth;
 	int endLinePos = 0;
 	
-	for (int i = 0; i < indexes.size()-1; i++) {
-		if (i != 0) {
-			//THE SMALLEST startLinePos AND BIGGEST endLinePos DO NOT HAVE TO BE ON THE SAME ROW
-			//if the pixel ahead of the current one is on the same row but the one behind is on a different row 
-			//we have a startrow. But we only want to update the value if it's % is smaller than the current one
-			//as this indicates it is further to the left.
-			if ((floor(indexes[i + 1] / arrayWidth) == floor(indexes[i] / arrayWidth)) 
-				&& (floor(indexes[i - 1] / arrayWidth) < floor(indexes[i] / arrayWidth))
-				&& (startLinePos > indexes[i] % arrayWidth)) {
-				startLinePos = indexes[i] % arrayWidth;
-			}
-			//If the pixel behind the current one is on the same row but the one ahead is on a new row, 
-			//we have an endrow. But we only want to update the value if its % is bigger than the current one 
-			//as this indicates it is further to the right.
-			if ((floor(indexes[i - 1] / arrayWidth) == floor(indexes[i] / arrayWidth)) 
-				&& (floor(indexes[i + 1] / arrayWidth) > floor(indexes[i] / arrayWidth))
-				&& (endLinePos % arrayWidth < indexes[i] % arrayWidth)) {
-				endLinePos = indexes[i] % arrayWidth;
-			}
+	for (int i = 1; i < indexes.size()-1; i++) {
+		//THE SMALLEST startLinePos AND BIGGEST endLinePos DO NOT HAVE TO BE ON THE SAME ROW
+		//if the pixel ahead of the current one is on the same row but the one behind is on a different row 
+		//we have a startrow. But we only want to update the value if it's % is smaller than the current one
+		//as this indicates it is further to the left.
+		if ((floor(indexes[i + 1] / arrayWidth) == floor(indexes[i] / arrayWidth))
+			&& (floor(indexes[i - 1] / arrayWidth) < floor(indexes[i] / arrayWidth))
+			&& (startLinePos > indexes[i] % arrayWidth)) {
+			startLinePos = indexes[i] % arrayWidth;
+		}
+		//If the pixel behind the current one is on the same row but the one ahead is on a new row, 
+		//we have an endrow. But we only want to update the value if its % is bigger than the current one 
+		//as this indicates it is further to the right.
+		if ((floor(indexes[i - 1] / arrayWidth) == floor(indexes[i] / arrayWidth))
+			&& (floor(indexes[i + 1] / arrayWidth) > floor(indexes[i] / arrayWidth))
+			&& (endLinePos % arrayWidth < indexes[i] % arrayWidth)) {
+			endLinePos = indexes[i] % arrayWidth;
 		}
 	}
-	//height = height / 2; //Because height is updated at the start of a row and at the end of a row.
 	width = endLinePos - startLinePos;
 	width = width + 1; //No way to test the width, so I pray this is the correct value. Otheriwise I'm fucked. I am indeed fucked. No longer
-	height -= 1;
 
-	int actualHeight = floor(indexes[indexes.size() - 1] / arrayWidth);
+	int actualHeight = floor(indexes[indexes.size() - 1] / arrayWidth)+1;
 
 	printf("Actual Height:%i\n", actualHeight);
 	printf("Height: %i\n", height);
@@ -670,8 +535,8 @@ void constructNewPixelBuffer(std::vector<int> indexes, int*visitedTracker, Uint3
 		//Will this work? Because surely this inner for loop will run to completion before the next while check. 
 		//But maybe it won't matter and the while loop isn't necessary.
 		//I dont think it is. I've commented it out for now, may re-use later.
-	for (int i = 0; i < indexes.size(); i++) {
-		if (i != 0 && (floor(indexes[i] / arrayWidth) > floor(indexes[i - 1] / arrayWidth))) {
+	for (int i = 1; i < indexes.size(); i++) {
+		if ((floor(indexes[i] / arrayWidth) > floor(indexes[i - 1] / arrayWidth))) {
 			currentHeight += floor(indexes[i] / arrayWidth) - floor(indexes[i - 1] / arrayWidth);
 		}
 		newPixelBuffer[(currentHeight * width) + ((indexes[i] % arrayWidth) - origin)] = pixels[indexes[i]];
@@ -866,7 +731,7 @@ int main(int argc, char* args[]) {
 							//contourFinder();
 							std::vector<Texture*> texturesToRemove;
 
-							for (Texture* t : textures) {
+							for (const auto& t : textures) {
 								if (t->isAltered()) {
 									splitTextureAtEdge(t);
 									t->resetSplittingFlag();
