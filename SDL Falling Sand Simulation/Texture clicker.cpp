@@ -6,10 +6,7 @@
 #include <queue>
 #include <algorithm>
 
-//TODO: Make the new images appear where they are supposed to (figure out relative origin shenanigans). Done
-//		Make the program be able to figure out which texture needs to be erased from. Done
-//		Work out why splitTextureAtEdge isn't working when I try to generalise it. 
-//		Work out why the alpha isn't working 
+//TODO: Work out why the alpha isn't working. Its never being set properly that's why. Its always 255. But why??
 //		Make textures be able to be moved properly without breaking the program.
 
 const int SCREEN_WIDTH = 640;
@@ -34,6 +31,8 @@ class Texture {
 
 		bool isAltered();
 
+		bool clickedOnTransparent(int x, int y);
+
 		void free();
 
 		void setOrigin(int x, int y);
@@ -52,6 +51,7 @@ class Texture {
 		Uint32* getPixels32();
 		Uint32 getPitch32();
 		Uint32 mapRGBA(Uint8 r, Uint8 g, Uint8 b, Uint8 a);
+		SDL_PixelFormat* getPixelFormat();
 
 	private:
 		SDL_Texture* texture;
@@ -78,7 +78,7 @@ Texture testTexture = Texture(240, 190);
 //This means that the old pointers for surfacePixels etc. are being invalidated, hence the memory write errors.
 std::vector<Texture*> textures;
 
-int scale = 10;
+int scale = 5;
 
 bool init();
 bool loadMedia();
@@ -109,8 +109,8 @@ Texture::Texture(int x, int y, int w, int h, Uint32* pixels) {
 	height = 0;
 	setOrigin(x, y);
 	needsSplitting = false;
-	surfacePixels = SDL_CreateRGBSurfaceFrom(pixels, w, h, 32, w*4, 0, 0, 0, 0);//pitch is the texture width * pixelsize in bytes
-	//surfacePixels = SDL_ConvertSurfaceFormat(surfacePixels, SDL_PIXELFORMAT_ARGB8888, 0);
+	surfacePixels = SDL_CreateRGBSurfaceWithFormatFrom(pixels, w, h, 32, w * 4, SDL_PIXELFORMAT_ARGB8888);//pitch is the texture width * pixelsize in bytes
+	SDL_SetSurfaceBlendMode(surfacePixels, SDL_BLENDMODE_BLEND);
 	loadFromPixels(); //Otherwise the texture does not exist.
 }
 
@@ -159,7 +159,7 @@ bool Texture::loadFromPixels() {
 	}
 	else {
 		texture = SDL_CreateTextureFromSurface(gRenderer, surfacePixels);
-		//SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+		SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
 		if (texture == NULL)
 		{
 			printf("Unable to create texture from loaded pixels! SDL Error: %s\n", SDL_GetError());
@@ -179,6 +179,15 @@ bool Texture::loadFromPixels() {
 
 bool Texture::isAltered() {
 	return needsSplitting;
+}
+
+bool Texture::clickedOnTransparent(int x, int y) {
+	x -= getOriginX();
+	y -= getOriginY();
+	Uint8 red, green, blue, alpha;
+	SDL_GetRGBA(getPixels32()[(y * getWidth()) + x], surfacePixels->format, &red, &green, &blue, &alpha);
+	if (alpha == 0) return true;
+	else return false;
 }
 
 Uint32* Texture::getPixels32() {
@@ -263,6 +272,10 @@ int Texture::getOriginY() {
 	return originY;
 }
 
+SDL_PixelFormat* Texture::getPixelFormat() {
+	return surfacePixels->format;
+}
+
 //Old erase function. Mostly here as a reference rather than actually used.
 void erasePixels(int x, int y) {
 	
@@ -324,22 +337,6 @@ void erasePixels(Texture* texture, int x, int y) {
 
 	texture->loadFromPixels(); //This is the bit that is causing all the bugs. Why??
 	texture->markAsAltered();
-}
-
-bool isAtEdge(int pixelPosition, int arrayWidth, int arrayLength) {
-	if (pixelPosition < arrayWidth || pixelPosition % arrayWidth == 0 ||
-		pixelPosition % arrayWidth == arrayWidth - 1 || pixelPosition >= arrayLength - arrayWidth) {
-		return true;
-	}
-	return false;
-}
-
-bool isAtCorner(int pixelPosition, int arrayWidth, int arrayLength) {
-	if (pixelPosition == 0 || pixelPosition == arrayWidth - 1 ||
-		pixelPosition == arrayLength - arrayWidth || pixelPosition == arrayLength - 1) {
-		return true;
-	}
-	return false;
 }
 
 bool isAtTopEdge(int pixelPosition, int arrayWidth) {
@@ -478,30 +475,27 @@ std::vector<int> bfs(int index, int arrayWidth, int arrayLength, Uint32* pixels,
 	return indexes;
 }
 
-void constructNewPixelBuffer(std::vector<int> indexes, int*visitedTracker, Uint32*pixels, Uint32 noPixelColour, int arrayWidth, Texture* texture) {
+Texture* constructNewPixelBuffer(std::vector<int> indexes, int*visitedTracker, Uint32*pixels, Uint32 noPixelColour, int arrayWidth, Texture* texture) {
 	Uint32* newPixelBuffer;
+	Texture* newTexture;
 	int width = 0;
 	int height = (int)(indexes.back() / arrayWidth) - (int)(indexes.front() / arrayWidth)+1; 
 
 	int startLinePos = indexes[0] % arrayWidth;
-	int endLinePos = 0;
+	int endLinePos = indexes[0] % arrayWidth;
 	
 	for (int i = 1; i < indexes.size()-1; i++) {
 		//THE SMALLEST startLinePos AND BIGGEST endLinePos DO NOT HAVE TO BE ON THE SAME ROW
 		//if the pixel ahead of the current one is on the same row but the one behind is on a different row 
 		//we have a startrow. But we only want to update the value if it's % is smaller than the current one
 		//as this indicates it is further to the left.
-		if ((floor(indexes[i + 1] / arrayWidth) == floor(indexes[i] / arrayWidth))
-			&& (floor(indexes[i - 1] / arrayWidth) < floor(indexes[i] / arrayWidth))
-			&& (startLinePos > indexes[i] % arrayWidth)) {
+		if (startLinePos > indexes[i] % arrayWidth) {
 			startLinePos = indexes[i] % arrayWidth;
 		}
 		//If the pixel behind the current one is on the same row but the one ahead is on a new row, 
 		//we have an endrow. But we only want to update the value if its % is bigger than the current one 
 		//as this indicates it is further to the right.
-		if ((floor(indexes[i - 1] / arrayWidth) == floor(indexes[i] / arrayWidth))
-			&& (floor(indexes[i + 1] / arrayWidth) > floor(indexes[i] / arrayWidth))
-			&& (endLinePos % arrayWidth < indexes[i] % arrayWidth)) {
+		if (endLinePos < indexes[i] % arrayWidth) {
 			endLinePos = indexes[i] % arrayWidth;
 		}
 	}
@@ -510,14 +504,17 @@ void constructNewPixelBuffer(std::vector<int> indexes, int*visitedTracker, Uint3
 
 	int actualHeight = floor(indexes[indexes.size() - 1] / arrayWidth)+1;
 
-	printf("Actual Height:%i\n", actualHeight);
 	printf("Height: %i\n", height);
 	printf("Width: %i\n", width);
-	printf("Size of pixel buffer: %i\n", indexes[indexes.size() - 1]);
 
 	//Creating the pixel buffer for the new texture
 	newPixelBuffer = new Uint32[width * height];
-	memset(newPixelBuffer, noPixelColour, width * height * sizeof(Uint32));//Filling it with transparent pixels
+	//The memset here is actually making all the pixels have an alpha of 255 for some reason, even though noPixelColour has an alpha of 0.
+	//memset(newPixelBuffer, noPixelColour, width * height * sizeof(Uint32));//Filling it with transparent pixels
+	//Using a for loop instead of memset fixes the alpha problem here.
+	for (int i = 0; i < width * height; i++) {
+		newPixelBuffer[i] = noPixelColour;
+	}
 
 	//Now need to figure out a way of getting the actual indecies to become relative indecies so I can stick them 
 	//into this new array. This would be good if I had an origin point, but I don't. Perhaps a way of getting one would be
@@ -527,85 +524,69 @@ void constructNewPixelBuffer(std::vector<int> indexes, int*visitedTracker, Uint3
 	//y does not need to be obtained in such a retarded fashion, because we have the width value to determine how long 
 	//each row should be (assuming the vain hope that my method of obtaining the width was correct).
 	//No way of testing this until we start working with multiple split textures.
-	int origin = ((int)floor(indexes[0] / arrayWidth)) + (startLinePos % arrayWidth);
+	//There is actually no need for an origin position, we just get the offset by using startLinePos, because an offset
+	//is only actually needed when slicing vertically, not horizontally. Using an origin messes everything up.
 
-	//While loop with index for the height? Maybe.
 	int currentHeight = 0;
-	//while (currentHeight < height) {
-		//Will this work? Because surely this inner for loop will run to completion before the next while check. 
-		//But maybe it won't matter and the while loop isn't necessary.
-		//I dont think it is. I've commented it out for now, may re-use later.
 	for (int i = 1; i < indexes.size(); i++) {
 		if ((floor(indexes[i] / arrayWidth) > floor(indexes[i - 1] / arrayWidth))) {
 			currentHeight += floor(indexes[i] / arrayWidth) - floor(indexes[i - 1] / arrayWidth);
 		}
-		newPixelBuffer[(currentHeight * width) + ((indexes[i] % arrayWidth) - origin)] = pixels[indexes[i]];
+		newPixelBuffer[(currentHeight * width) + ((indexes[i] % arrayWidth) - startLinePos)] = pixels[indexes[i]];
 	}
-	//}
+
+	//Edge case of 1x1 textures.
+	if (indexes.size() == 1) {
+		newPixelBuffer[0] = pixels[indexes[0]];
+	}
 
 	//This works. Still need to fix the alpha issue. Used pointers otherwise this doesn't work.
-	int originX = texture->getOriginX() + (startLinePos % arrayWidth);
+	int originX = texture->getOriginX() + (startLinePos);
 	int originY = texture->getOriginY() + ((int)floor(indexes[0] / arrayWidth));
 
-	//Need to get the origin of the new texture in the screen. But for now lets just set it to (0,0) so that we can 
-	//do some testing. Set this as a pointer as otherwise this variable will be destroyed once this method finishes.
-	Texture* newTexture = new Texture(originX, originY, width, height, newPixelBuffer);
-	textures.push_back(newTexture);
+	//Set this as a pointer as otherwise this variable will be destroyed once this method finishes.
+	newTexture = new Texture(originX, originY, width, height, newPixelBuffer);
 
 	cleanup(pixels, noPixelColour, indexes);
+	return newTexture;
 
-	//delete[] newPixelBuffer;
+	//delete[] newPixelBuffer; //This needs to be commented out since we are actively using newPixelBuffer to create our texture.
 }
 
-//Fixed by adding a flag in the texture class to see if it is being erased. Now there is a new problem where textures
-//are being removed from the vector for no reason. But that should hopefully be easier to fix.
-//The bug is that splitTextureAtEdge is not working on any texture after the first has been split. This is what is causing
-//the allocation error. The new textures are fucked for some reason.
-void splitTextureAtEdge(Texture* texture) {
-	if (!texture || !texture->isAltered()) return;
+std::vector<Texture*> splitTextureAtEdge(Texture* texture) {
+	if (!texture || !texture->isAltered()) return {};
 
 	//Get the texture pixels
-	Uint32* pixels = texture->getPixels32();
+	Uint32* pixels = texture->getPixels32(); //This has the correct alpha values for the pixels (checked)
 	//This is the transparent pixel colour
 	Uint32 noPixelColour = texture->mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
-	//printf("Expected Transparent Colour: %u\n", noPixelColour);
 	//A placement int that gets the length of the pixel 1D array
-	int arrayLength = texture->getWidth() * testTexture.getHeight();
+	int arrayLength = texture->getWidth() * texture->getHeight();
 	//A bitmap that remembers if we visited a pixel before or not.
 	int* visitedTracker = new int[arrayLength];
 	//Initialising visitedTracker to all 0.
 	memset(visitedTracker, 0, arrayLength * sizeof(int));
+	//Pixel buffer vector
 	std::vector<int> possibleStarts;
-
-	/*bool hasTransparentRegions = false;
-	for (int i = 0; i < arrayLength; ++i) {
-		if (pixels[i] == noPixelColour) {
-			hasTransparentRegions = true;
-			break;
-		}
-	}
-	if (!hasTransparentRegions) return;*/
+	//Vector for all the new textures that are being formed. This method will return them
+	std::vector<Texture*> newTextures;
 
 	printf("Texture Width: %i\n", texture->getWidth());
 	printf("Texture Height: %i\n", texture->getHeight());
 
 	//For loop to get all the split texture parts.
-	for (int i = 0; i < texture->getWidth(); i++) {
+	for (int i = 0; i < arrayLength; i++) {
 		if (pixels[i] != noPixelColour) {
 			possibleStarts = bfs(i, texture->getWidth(), arrayLength, pixels, noPixelColour, visitedTracker);
+			printf("bfs size: %i\n", possibleStarts.size()); 
 			if (!possibleStarts.empty()) {
-				constructNewPixelBuffer(possibleStarts, visitedTracker, pixels, noPixelColour, texture->getWidth(), texture);
+				newTextures.push_back(constructNewPixelBuffer(possibleStarts, visitedTracker, pixels, noPixelColour, texture->getWidth(), texture));
 			}
 		}
 	}
 
-	//toBeFreed.push_back(texture);
-
-	printf("bfs size: %i\n", possibleStarts.size());
-	printf("Texture width: %i\n", texture->getWidth());
-	printf("Pixel Buffer Size:%i\n", arrayLength);
-
-	//delete[] visitedTracker;
+	delete[] visitedTracker;
+	return newTextures;
 }
 
 bool init()
@@ -715,6 +696,7 @@ int main(int argc, char* args[]) {
 			bool quit = false;
 			bool leftMouseButtonDown = false;
 			bool rightMouseButtonDown = false;
+			Texture* dragTexture = NULL;
 			textures.push_back(&testTexture);//This works fine now.
 
 			SDL_Event e;
@@ -730,34 +712,62 @@ int main(int argc, char* args[]) {
 						if (e.button.button == SDL_BUTTON_LEFT) {
 							//contourFinder();
 							std::vector<Texture*> texturesToRemove;
+							std::vector<Texture*> texturesToAdd;
 
-							for (const auto& t : textures) {
+							for (Texture* t : textures) {
 								if (t->isAltered()) {
-									splitTextureAtEdge(t);
+									for (Texture* texture : splitTextureAtEdge(t)) {
+										texturesToAdd.push_back(texture);
+									}
 									t->resetSplittingFlag();
 									texturesToRemove.push_back(t);
 								}
 							}
+
+							for (Texture* t : texturesToAdd) {
+								textures.push_back(t);
+							}
+							texturesToAdd.clear();
+
 							for (Texture* t : texturesToRemove) {
 								textures.erase(find(textures.begin(), textures.end(), t));
 								t->free();
 							}
+							texturesToRemove.clear();
 
 							printf("Number of Textures: %i\n", textures.size());
 							leftMouseButtonDown = false;
 						}
-						if (e.button.button == SDL_BUTTON_RIGHT)
+						if (e.button.button == SDL_BUTTON_RIGHT) {
 							rightMouseButtonDown = false;
+							dragTexture = NULL;
+						}
 						break;
 					case SDL_MOUSEBUTTONDOWN:
-						if (e.button.button == SDL_BUTTON_LEFT)
+						if (e.button.button == SDL_BUTTON_LEFT) {
 							leftMouseButtonDown = true;
-						if (e.button.button == SDL_BUTTON_RIGHT) {
+							for (Texture* t : textures) {
+								if (e.motion.x >= t->getOriginX() && e.motion.x < t->getOriginX() + t->getWidth()
+									&& e.motion.y < t->getOriginY() + t->getHeight() && e.motion.y >= t->getOriginY()) {
+									erasePixels(t, e.motion.x, e.motion.y);
+								}
+							}
+						}
+						if (e.button.button == SDL_BUTTON_RIGHT && e.motion.x >= 0 && e.motion.x < 640 && e.motion.y < 480 && e.motion.y >= 0) {
 							rightMouseButtonDown = true;
 							SDL_GetMouseState(&x, &y);
+							for (Texture* t : textures) {
+								if (e.motion.x >= t->getOriginX() && e.motion.x < t->getOriginX() + t->getWidth()
+									&& e.motion.y < t->getOriginY() + t->getHeight() && e.motion.y >= t->getOriginY() 
+									&& !t->clickedOnTransparent(e.motion.x, e.motion.y)) {
+									dragTexture = t;
+									break; 
+								}
+							}
 						}
+						break;
 					case SDL_MOUSEMOTION:
-						if (leftMouseButtonDown &&  e.motion.x >= 0 && e.motion.x < 640 && e.motion.y < 480 && e.motion.y >= 0) {
+						if (leftMouseButtonDown && e.motion.x >= 0 && e.motion.x < 640 && e.motion.y < 480 && e.motion.y >= 0) {
 							for (Texture* t : textures) {
 								if (e.motion.x >= t->getOriginX() && e.motion.x < t->getOriginX() + t->getWidth()
 									&& e.motion.y < t->getOriginY() + t->getHeight() && e.motion.y >= t->getOriginY()) {
@@ -766,22 +776,10 @@ int main(int argc, char* args[]) {
 							}
 						}
 						//Dragging functionality
-						//The textures disappear now?????
-						else if (rightMouseButtonDown && e.motion.x >= 0 && e.motion.x < 640 && e.motion.y < 480 && e.motion.y >= 0) {
-							for (Texture* t : textures) {
-								if (e.motion.x >= t->getOriginX() && e.motion.x < t->getOriginX() + t->getWidth() 
-									&& e.motion.y < t->getOriginY() + t->getHeight() && e.motion.y >= t->getOriginY()) {
-									int newX = t->getOriginX() + e.motion.xrel;
-									int newY = t->getOriginY() + e.motion.yrel;
-									t->setOrigin(newX, newY);
-								}
-							}
-							/*if (e.motion.x >= testTexture.getOriginX() && e.motion.x < testTexture.getOriginX() + testTexture.getWidth()
-								&& e.motion.y < testTexture.getOriginY() + testTexture.getHeight() && e.motion.y >= testTexture.getOriginY()) {
-								int newX = testTexture.getOriginX() + e.motion.xrel;
-								int newY = testTexture.getOriginY() + e.motion.yrel;
-								testTexture.setOrigin(newX, newY);
-							}*/
+						if (dragTexture != NULL) {
+							int newX = dragTexture->getOriginX() + e.motion.xrel;
+							int newY = dragTexture->getOriginY() + e.motion.yrel;
+							dragTexture->setOrigin(newX, newY);
 						}
 						break;
 					}
@@ -792,9 +790,7 @@ int main(int argc, char* args[]) {
 
 				for (Texture* t : textures) {
 					t->render();
-					//printf("OriginX: %i, OriginY; %i", t->getOriginX(), t->getOriginY());
 				}
-
 				SDL_RenderPresent(gRenderer);
 			}
 		}
