@@ -2,73 +2,15 @@
 #include<stdio.h>
 #include<SDL_image.h>
 #include<iostream>
-#include <vector>
-#include <queue>
-#include <algorithm>
-
-//TODO: Work out why the alpha isn't working. Its never being set properly that's why. Its always 255. But why??
-//		Make textures be able to be moved properly without breaking the program.
+#include<vector>
+#include<queue>
+#include<algorithm>
+#include "Texture.hpp"
 
 const int SCREEN_WIDTH = 640;
 const int SCREEN_HEIGHT = 480;
 
-//Texture class. This will contain our initial red square, that we will then modify and break up.
-class Texture {
-	public:
-		Texture();
-
-		Texture(int x, int y);
-
-		Texture(int x, int y, int w, int h, Uint32* pixels);
-
-		~Texture();
-
-		bool loadFromFile(std::string path);
-
-		bool loadPixelsFromFile(std::string path);
-
-		bool loadFromPixels();
-
-		bool isAltered();
-
-		bool clickedOnTransparent(int x, int y);
-
-		void free();
-
-		void setOrigin(int x, int y);
-
-		void render();
-
-		void markAsAltered();
-
-		void resetSplittingFlag();
-
-		int getWidth();
-		int getHeight();
-		int getOriginX();
-		int getOriginY();
-
-		Uint32* getPixels32();
-		Uint32 getPitch32();
-		Uint32 mapRGBA(Uint8 r, Uint8 g, Uint8 b, Uint8 a);
-		SDL_PixelFormat* getPixelFormat();
-
-	private:
-		SDL_Texture* texture;
-
-		SDL_Surface* oldSurface;
-
-		SDL_Surface* surfacePixels;
-
-		int width;
-		int height;
-		int originX;
-		int originY;
-
-		bool needsSplitting;
-};
-
-//Some global variables
+////Some global variables
 SDL_Window* gWindow = NULL;
 SDL_Renderer* gRenderer = NULL;
 Texture testTexture = Texture(240, 190);
@@ -82,231 +24,6 @@ int scale = 5;
 
 bool init();
 bool loadMedia();
-
-Texture::Texture(){
-	texture = NULL;
-	oldSurface = NULL;
-	width = 0;
-	height = 0;
-	needsSplitting = false;
-}
-
-//Use when loading from file
-Texture::Texture(int x, int y) {
-	texture = NULL;
-	oldSurface = NULL;
-	width = 0;
-	height = 0;
-	setOrigin(x, y);
-	needsSplitting = false;
-}
-
-//Use when using pixel buffer.
-Texture::Texture(int x, int y, int w, int h, Uint32* pixels) {
-	texture = NULL;
-	oldSurface = NULL;
-	width = 0;
-	height = 0;
-	setOrigin(x, y);
-	needsSplitting = false;
-	surfacePixels = SDL_CreateRGBSurfaceWithFormatFrom(pixels, w, h, 32, w * 4, SDL_PIXELFORMAT_ARGB8888);//pitch is the texture width * pixelsize in bytes
-	SDL_SetSurfaceBlendMode(surfacePixels, SDL_BLENDMODE_BLEND);
-	loadFromPixels(); //Otherwise the texture does not exist.
-}
-
-Texture::~Texture() {
-	free();
-}
-
-bool Texture::loadFromFile(std::string path) {
-	if (!loadPixelsFromFile(path)) {
-		printf("Failed to load pixels for %s!\n", path.c_str());
-	}
-	else {
-		if (!loadFromPixels())
-		{
-			printf("Failed to texture from pixels from %s!\n", path.c_str());
-		}
-	}
-
-	return texture != NULL;
-}
-
-bool Texture::loadPixelsFromFile(std::string path) {
-	free();
-
-	SDL_Surface* loadedSurface = IMG_Load(path.c_str());
-	if (loadedSurface == NULL) {
-		printf("Unable to load image %s! SDL_image Error: %s\n", path.c_str(), IMG_GetError());
-	}
-	else {
-		surfacePixels = SDL_ConvertSurfaceFormat(loadedSurface, SDL_PIXELFORMAT_ARGB8888, 0);
-		if (surfacePixels == NULL) {
-			printf("Unable to convert loaded surface to display format! SDL Error: %s\n", SDL_GetError());
-		}
-		else {
-			width = surfacePixels->w;
-			height = surfacePixels->h;
-		}
-		SDL_FreeSurface(loadedSurface);
-	}
-	return surfacePixels != NULL;
-}
-
-bool Texture::loadFromPixels() {
-	if (surfacePixels == NULL) {
-		printf("No pixels loaded!");
-	}
-	else {
-		texture = SDL_CreateTextureFromSurface(gRenderer, surfacePixels);
-		SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
-		if (texture == NULL)
-		{
-			printf("Unable to create texture from loaded pixels! SDL Error: %s\n", SDL_GetError());
-		}
-		else
-		{
-			width = surfacePixels->w;
-			height = surfacePixels->h;
-		}
-
-		//Get rid of old loaded surface
-		//SDL_FreeSurface(surfacePixels);
-		//surfacePixels = NULL;
-	}
-	return texture != NULL;
-}
-
-bool Texture::isAltered() {
-	return needsSplitting;
-}
-
-bool Texture::clickedOnTransparent(int x, int y) {
-	x -= getOriginX();
-	y -= getOriginY();
-	Uint8 red, green, blue, alpha;
-	SDL_GetRGBA(getPixels32()[(y * getWidth()) + x], surfacePixels->format, &red, &green, &blue, &alpha);
-	if (alpha == 0) return true;
-	else return false;
-}
-
-Uint32* Texture::getPixels32() {
-	Uint32* pixels = NULL;
-
-	if (surfacePixels != NULL) {
-		pixels = static_cast<Uint32*>(surfacePixels->pixels);
-	}
-
-	return pixels;
-}
-
-Uint32 Texture::getPitch32() {
-	Uint32 pitch = 0;
-
-	if (surfacePixels != NULL)
-	{
-		pitch = surfacePixels->pitch / 4;
-	}
-
-	return pitch;
-}
-
-Uint32 Texture::mapRGBA(Uint8 r, Uint8 g, Uint8 b, Uint8 a)
-{
-	Uint32 pixel = 0;
-
-	if (surfacePixels != NULL)
-	{
-		pixel = SDL_MapRGBA(surfacePixels->format, r, g, b, a);
-	}
-
-	return pixel;
-}
-
-void Texture::free() {
-	if (texture != NULL)
-	{
-		SDL_DestroyTexture(texture);
-		texture = NULL;
-		width = 0;
-		height = 0;
-	}
-
-	if (surfacePixels != NULL) {
-		SDL_FreeSurface(surfacePixels);
-		surfacePixels = NULL;
-	}
-}
-
-void Texture::setOrigin(int x, int y) {
-	originX = x;
-	originY = y;
-}
-
-void Texture::render() {
-	SDL_Rect renderQuad = { originX, originY, width, height };
-	SDL_RenderCopy(gRenderer, texture, NULL, &renderQuad);
-}
-
-void Texture::markAsAltered() {
-	needsSplitting = true;
-}
-
-void Texture::resetSplittingFlag() {
-	needsSplitting = false;
-}
-
-int Texture::getWidth() {
-	return width;
-}
-
-int Texture::getHeight() {
-	return height;
-}
-
-int Texture::getOriginX() {
-	return originX;
-}
-
-int Texture::getOriginY() {
-	return originY;
-}
-
-SDL_PixelFormat* Texture::getPixelFormat() {
-	return surfacePixels->format;
-}
-
-//Old erase function. Mostly here as a reference rather than actually used.
-void erasePixels(int x, int y) {
-	
-	x -= testTexture.getOriginX();
-	y -= testTexture.getOriginY();
-
-	Uint32* pixels = testTexture.getPixels32();
-
-	Uint32 transparent = testTexture.mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
-
-	if (scale > 0) {
-		for (int w = 0; w < scale * 2; w++)
-		{
-			for (int h = 0; h < scale * 2; h++)
-			{
-				int dx = scale - w; // horizontal offset
-				int dy = scale - h; // vertical offset
-				if ((dx * dx + dy * dy) < (scale * scale)&&(x+dx<testTexture.getWidth()) && (x+dx > -1) && (y + dy < testTexture.getHeight()) && (y + dy > -1))
-				{
-					pixels[(y + dy) * testTexture.getWidth() + (x + dx)] = transparent;
-				}
-			}
-		}
-	}
-	else {
-		pixels[y * testTexture.getWidth() + x] = transparent;
-	}
-
-	testTexture.loadFromPixels();
-	testTexture.markAsAltered();
-}
 
 void erasePixels(Texture* texture, int x, int y) {
 
@@ -335,7 +52,7 @@ void erasePixels(Texture* texture, int x, int y) {
 		pixels[y * texture->getWidth() + x] = transparent;
 	}
 
-	texture->loadFromPixels(); //This is the bit that is causing all the bugs. Why??
+	texture->loadFromPixels(gRenderer); //This is the bit that is causing all the bugs. Why??
 	texture->markAsAltered();
 }
 
@@ -415,17 +132,20 @@ bool findColoursOfNeighbours(int pixelPosition, int arrayWidth, int arrayLength,
 	return nextToBlank;
 }
 
-void contourFinder(Uint32* pixels, Uint32 noPixelColour, int*visitedTracker) {
+//Gets the outline of a texture;
+std::vector<int> contourFinder(Uint32* pixels, Uint32 noPixelColour) {
 	//Uint32 contourColour = testTexture.mapRGBA(0xFF, 0x00, 0xFF, 0xFF);
+	std::vector<int> outlinePixels;
 	for (int i = 0; i < testTexture.getWidth() * testTexture.getHeight(); i++) {
 		if (pixels[i] == noPixelColour || !findColoursOfNeighbours(i, testTexture.getWidth(), testTexture.getWidth() * testTexture.getHeight(), pixels)) {
 			continue;
 		}
 		else {
 			//pixels[i] = contourColour;
-			visitedTracker[i] = 2;
+			outlinePixels.push_back(i);
 		}
 	}
+	return outlinePixels;
 }
 
 void cleanup(Uint32* pixels, Uint32 noPixelColour, std::vector<int> indexes) {
@@ -506,13 +226,21 @@ Texture* constructNewPixelBuffer(std::vector<int> indexes, int*visitedTracker, U
 
 	printf("Height: %i\n", height);
 	printf("Width: %i\n", width);
-
+	//Essentially, in order for marching squares to work, there has to be a one-pixel wide colourless perimeter around
+	//the texture. This is so that there is an actual "border" for marching squares to trace around, and I think this is 
+	//the least code and computationally expenseive method of implementing this, as the other way would be to have
+	//marching squares "imagine" such a border, which would require a lot of checking of assumptions and pixel positions
+	//ie, more code and work.
+	//To implement this, we need to increase height and width by 2 (1 pixel for each side). We can increase height 
+	//temporarily when we call it, but we need to increase width permanently, as otherwise it gets messed up in 
+	//multiplication calls.
+	width += 2; 
 	//Creating the pixel buffer for the new texture
-	newPixelBuffer = new Uint32[width * height];
+	newPixelBuffer = new Uint32[(width) * (height + 2)];
 	//The memset here is actually making all the pixels have an alpha of 255 for some reason, even though noPixelColour has an alpha of 0.
 	//memset(newPixelBuffer, noPixelColour, width * height * sizeof(Uint32));//Filling it with transparent pixels
 	//Using a for loop instead of memset fixes the alpha problem here.
-	for (int i = 0; i < width * height; i++) {
+	for (int i = 0; i < (width) * (height+2); i++) {
 		newPixelBuffer[i] = noPixelColour;
 	}
 
@@ -527,25 +255,27 @@ Texture* constructNewPixelBuffer(std::vector<int> indexes, int*visitedTracker, U
 	//There is actually no need for an origin position, we just get the offset by using startLinePos, because an offset
 	//is only actually needed when slicing vertically, not horizontally. Using an origin messes everything up.
 
-	int currentHeight = 0;
-	for (int i = 1; i < indexes.size(); i++) {
-		if ((floor(indexes[i] / arrayWidth) > floor(indexes[i - 1] / arrayWidth))) {
+	int currentHeight = 1; //Since the first row will be the blank pixel perimeter.
+	for (int i = 0; i < indexes.size(); i++) {
+		if (i != 0 && (floor(indexes[i] / arrayWidth) > floor(indexes[i - 1] / arrayWidth))) {
 			currentHeight += floor(indexes[i] / arrayWidth) - floor(indexes[i - 1] / arrayWidth);
 		}
-		newPixelBuffer[(currentHeight * width) + ((indexes[i] % arrayWidth) - startLinePos)] = pixels[indexes[i]];
+		//Add 1 here as an offset to the LHS perimeter. The RHS and BHS perimeters will be automatically accounted for
+		//as the code will never reach them, so no need to worry about that.
+		newPixelBuffer[(currentHeight * (width)) + ((indexes[i] % arrayWidth) - startLinePos)+1] = pixels[indexes[i]];
 	}
 
-	//Edge case of 1x1 textures.
+	//Edge case of 1x1 textures. Need to do newPixelBuffer[5], since the fifth pixel would be the middle one in a 3x3 grid.
 	if (indexes.size() == 1) {
-		newPixelBuffer[0] = pixels[indexes[0]];
+		newPixelBuffer[5] = pixels[indexes[0]];
 	}
 
 	//This works. Still need to fix the alpha issue. Used pointers otherwise this doesn't work.
-	int originX = texture->getOriginX() + (startLinePos);
-	int originY = texture->getOriginY() + ((int)floor(indexes[0] / arrayWidth));
+	int originX = texture->getOriginX() + (startLinePos)-1; //-1 for transparent pixel border, so that the texture is not offset by one because of the invisible perimeter.
+	int originY = texture->getOriginY() + ((int)floor(indexes[0] / arrayWidth))-1;
 
 	//Set this as a pointer as otherwise this variable will be destroyed once this method finishes.
-	newTexture = new Texture(originX, originY, width, height, newPixelBuffer);
+	newTexture = new Texture(originX, originY, width, height, newPixelBuffer, gRenderer);
 
 	cleanup(pixels, noPixelColour, indexes);
 	return newTexture;
@@ -588,6 +318,196 @@ std::vector<Texture*> splitTextureAtEdge(Texture* texture) {
 	delete[] visitedTracker;
 	return newTextures;
 }
+#pragma region marchingSquares 
+//Marching squares: First we need to get the starting pixel. This is just done by iterating over the array until 
+//					we find a non-transparent pixel
+//					Then we need to find the square value of it and the four pixels surrounding it
+//					Then based on that square value (and in the special saddle cases also on the previous square value)
+//					we choose a new direction to move the "analysis" and add the currently analysed pixel to a vector;
+//					Good source code and ideas from here: https://emanueleferonato.com/2013/03/01/using-marching-squares-algorithm-to-trace-the-contour-of-an-image/
+//					And here: https://barradeau.com/blog/?p=391
+
+int getStartingPixel(Uint32* pixels, Uint32 noPixelColour, int arrayLength) {
+	for (int i = 0; i < arrayLength; i++) {
+		if (pixels[i] != noPixelColour) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+//ChatGPT version: (This is actually far less retarded than my original code and actually quite nice. Doesn't stop the fact that the code overall still doesn't work though)
+int getCurrentSquare(int startIndex, int textureWidth, int textureLength, const uint32_t* pixels, uint32_t noPixelColour) {
+	int result = 0;
+
+	// Calculate row and column of startIndex
+	int row = startIndex / textureWidth;
+	int col = startIndex % textureWidth;
+
+	// Top-left pixel
+	if (pixels[startIndex] != noPixelColour) result += 1;
+
+	// Top-right pixel
+	if (pixels[startIndex + 1] != noPixelColour) result += 2;
+
+	// Bottom-left pixel
+	if (pixels[startIndex + textureWidth] != noPixelColour) result += 4;
+
+	// Bottom-right pixel
+	if (pixels[startIndex + textureWidth + 1] != noPixelColour) result += 8;
+
+	return result;
+}
+
+//ChatGPT version. Idk looks odd.
+//Maybe the issue is that we shouldn't be considering the 15th case at all. so if we're at an edge, even the left or top edge,
+//we actually pretend like there is an invisible, one pixel long perimeter around the texture, so that we never form the 
+//15th case. So then at the top edge we would get 12, unless at the TRH corner, where we would get 4, or at the TLH corner,
+//where we would get 8. And then for the left hand side we would get 10, unless in the BLH corner, where we would get 2
+//(TLH corner is discussed in previous sentence). And then we keep Bottom and Right as is since we already pretend they have
+//a perimeter anyway. Maybe this fixes???????? But would case fucked out of bounds errors. ORRR. We don't imagine the pixel
+//perimeter, we actually add it in for real. That way we don't have to pretend. But that could be aids to do. 
+std::vector<int> marchingSquares(Texture* texture) {
+	uint32_t* pixels = texture->getPixels32();
+	int width = texture->getWidth();
+	int length = texture->getHeight() * width;
+	int totalPixels = width * length;
+	uint32_t noPixelColour = texture->mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
+
+	std::vector<int> contourPoints;
+	int startPoint = getStartingPixel(pixels, noPixelColour, totalPixels);
+	if (startPoint == -1) return contourPoints;
+	//If the texture is filled on the LHS, we will end up with 15 as our first currentSquare. 
+	//To avoid this, we simply offset startPoint one to the left, to get 12 as our currentSquare, 
+	//and then marching squares handles the rest.
+	if (getCurrentSquare(startPoint, width, length, pixels, noPixelColour) == 15) {
+		startPoint -= 1;
+	}
+
+	//printf("Starting Point: %d\n", startPoint);
+
+	int stepX = 0, stepY = 0;
+	int prevX = 0, prevY = 0;
+	int currentPoint = startPoint;
+	bool closedLoop = false;
+
+	while (!closedLoop) {
+		int currentSquare = getCurrentSquare(currentPoint, width, length, pixels, noPixelColour);
+		//printf("Current Square: %d\n", currentSquare);
+
+		// Movement lookup based on currentSquare value
+		switch (currentSquare) {
+		case 1: case 13:
+			stepX = 0; stepY = -1;
+			break;
+		case 8: case 10: case 11:
+			stepX = 0; stepY = 1;
+			break;
+		case 4: case 12: case 14:
+			stepX = -1; stepY = 0;
+			break;
+		case 2: case 3: case 7:
+			stepX = 1; stepY = 0;
+			break;
+		case 5:
+			stepX = 0; stepY = -1;
+			break;
+		case 6:
+			stepX = (prevY == -1) ? -1 : 1;
+			stepY = 0;
+			break;
+		case 9:
+			stepX = 0;
+			stepY = (prevX == 1) ? -1 : 1;
+			break;
+		default:
+			printf("Unhandled or empty square encountered at index: %d\n", currentPoint);
+			return contourPoints;
+		}
+
+		currentPoint += stepY * width + stepX;
+		//printf("Current Point: %i\n", currentPoint);
+
+		// Boundary checks. Should not happen but here just in case.
+		if (currentPoint < 0 || currentPoint >= totalPixels) {
+			printf("Out-of-bounds detected at index: %d\n", currentPoint);
+			return contourPoints;
+		}
+
+		contourPoints.push_back(currentPoint);
+		prevX = stepX;
+		prevY = stepY;
+
+		if (currentPoint == startPoint) closedLoop = true;
+	}
+
+	return contourPoints;
+}
+#pragma endregion
+
+#pragma region rdp
+//Code source: https://editor.p5js.org/codingtrain/sketches/SQjSugKn6
+int* convertIndexToCoords(int index, int arrayWidth) {
+	return new int[2] { index% arrayWidth, (int)floor(index / arrayWidth) };
+}
+
+float lineDist(int point, int startPoint, int endPoint, int arrayWidth) {
+	int* pointCoords = convertIndexToCoords(point, arrayWidth);
+	//printf("Point Coords: (%i, %i)\n", pointCoords[0], pointCoords[1]);
+	int* startPointCoords = convertIndexToCoords(startPoint, arrayWidth);
+	//printf("Start Point Coords: (%i, %i)\n", startPointCoords[0], startPointCoords[1]);
+	int* endPointCoords = convertIndexToCoords(endPoint, arrayWidth);
+	//printf("End Point Coords: (%i, %i)\n", endPointCoords[0], endPointCoords[1]);
+	//printf("Top part of equation: %i \n", abs(((endPointCoords[1] - startPointCoords[1]) * pointCoords[0]) -
+	//	((endPointCoords[0] - startPointCoords[0]) * pointCoords[1]) +
+	//	(endPointCoords[0] * startPointCoords[1]) - (endPointCoords[1] * startPointCoords[0])));
+	//std::cout << "Bottom Part of equation: " <<sqrt(pow((endPointCoords[1] - startPointCoords[1]), 2) + pow((endPointCoords[0] - startPointCoords[0]), 2)) << "\n";
+
+	//The source for this very cursed single line of code can be found here : https://en.wikipedia.org/wiki/Distance_from_a_point_to_a_line#Line_defined_by_two_points
+	float distance = abs(((endPointCoords[1] - startPointCoords[1]) * pointCoords[0]) -
+		((endPointCoords[0] - startPointCoords[0]) * pointCoords[1]) +
+		(endPointCoords[0] * startPointCoords[1]) - (endPointCoords[1] * startPointCoords[0])) /
+		sqrt(pow((endPointCoords[1] - startPointCoords[1]), 2) + pow((endPointCoords[0] - startPointCoords[0]), 2));
+	return distance;
+}
+
+int findFurthest(std::vector<int> allPoints, int a, int b, int epsilon, int arrayWidth) {
+	float recordDistance = -1;
+	int furthestIndex = -1;
+	int start = allPoints[a];
+	int end = allPoints[b];
+	for (int i = a + 1; i < b; i++) {
+		float d = lineDist(allPoints[i], start, end, arrayWidth);
+		if (d > recordDistance) {
+			recordDistance = d;
+			furthestIndex = i;
+		}
+	}
+	if (recordDistance > epsilon) return furthestIndex;
+	else return -1;
+}
+
+//This method would be used for lines that do not join up
+void rdp(int startIndex, int endIndex, int epsilon, int arrayWidth, std::vector<int> allPoints, std::vector<int> &rdpPoints) {
+	int nextIndex = findFurthest(allPoints, startIndex, endIndex, epsilon, arrayWidth);
+	if (nextIndex > 0) {
+		//printf("Next Index: %i\n", nextIndex);
+		if (startIndex != nextIndex) {
+			rdp(startIndex, nextIndex, epsilon, arrayWidth, allPoints, rdpPoints);
+		}
+		rdpPoints.push_back(allPoints[nextIndex]); //I don't think this line is working. I think the rdp vector still just has the start and end points and that is it.
+		if (endIndex != nextIndex) {
+			rdp(nextIndex, endIndex, epsilon, arrayWidth, allPoints, rdpPoints);
+		}
+	}
+}
+
+//This method would be used for lines that are joined together (have no start or endpoint)
+void rdp(int startIndex, std::vector<int> allPoints, std::vector<int> rdpPoints) {
+
+}
+#pragma endregion
+
 
 bool init()
 {
@@ -656,7 +576,7 @@ bool loadMedia()
 	}
 	else {
 
-		if (!testTexture.loadFromPixels())
+		if (!testTexture.loadFromPixels(gRenderer))
 		{
 			printf("Unable to load Foo' texture from surface!\n");
 		}
@@ -698,6 +618,10 @@ int main(int argc, char* args[]) {
 			bool rightMouseButtonDown = false;
 			Texture* dragTexture = NULL;
 			textures.push_back(&testTexture);//This works fine now.
+			std::vector<std::vector<int>> testingPoints;
+			bool getOutline = false;
+			bool getSimplifiedOutline = false;
+			//Testing for box2d:
 
 			SDL_Event e;
 			while (!quit) {
@@ -734,6 +658,7 @@ int main(int argc, char* args[]) {
 								t->free();
 							}
 							texturesToRemove.clear();
+							/*testingPoints = marchingSquares(textures[0]);*/
 
 							printf("Number of Textures: %i\n", textures.size());
 							leftMouseButtonDown = false;
@@ -746,6 +671,8 @@ int main(int argc, char* args[]) {
 					case SDL_MOUSEBUTTONDOWN:
 						if (e.button.button == SDL_BUTTON_LEFT) {
 							leftMouseButtonDown = true;
+							getOutline = false;
+							getSimplifiedOutline = false;
 							for (Texture* t : textures) {
 								if (e.motion.x >= t->getOriginX() && e.motion.x < t->getOriginX() + t->getWidth()
 									&& e.motion.y < t->getOriginY() + t->getHeight() && e.motion.y >= t->getOriginY()) {
@@ -782,6 +709,28 @@ int main(int argc, char* args[]) {
 							dragTexture->setOrigin(newX, newY);
 						}
 						break;
+					case SDL_KEYDOWN:
+						if (e.key.keysym.sym == SDLK_o) {
+							testingPoints.clear();
+							for (int i = 0; i < textures.size(); i++) {
+								std::vector<int> tempPoints = marchingSquares(textures[i]);
+								testingPoints.push_back(tempPoints);
+							}
+							getOutline = true;
+							//printf("Testing Distance: %f",lineDist(13, 4, 20, 5));
+						}
+						if (e.key.keysym.sym == SDLK_s) {
+							for (int i = 0; i < testingPoints.size(); i++) {
+								//rdp
+								std::vector<int> rdpPoints;
+								rdpPoints.push_back(testingPoints[i][0]);
+								rdp(0, testingPoints[i].size() - 1, 0, textures[i]->getWidth(), testingPoints[i], rdpPoints);
+								rdpPoints.push_back(testingPoints[i][testingPoints[i].size() - 1]);
+								printf("Moving onto a new Texture\n");
+							}
+							getSimplifiedOutline = true;
+						}
+						break;
 					}
 				}
 				//This is where all the functionality in the main loop will go.
@@ -789,7 +738,41 @@ int main(int argc, char* args[]) {
 				SDL_RenderClear(gRenderer);
 
 				for (Texture* t : textures) {
-					t->render();
+					t->render(gRenderer);
+				}
+				if (getOutline) {
+					for (int i = 0; i < testingPoints.size(); i++) {
+						//testingPoints = marchingSquares(textures[i]);
+						for (int j = 0; j < testingPoints[i].size() - 1; j++) {
+							//printf("%i", testingPoints[j]);
+							//Marching squares
+							SDL_SetRenderDrawColor(gRenderer, 0x00, 0x00, 0xFF, 0xFF);
+							SDL_RenderDrawLine(gRenderer, textures[i]->getOriginX() + (testingPoints[i][j] % textures[i]->getWidth()),
+								textures[i]->getOriginY() + (int)(floor(testingPoints[i][j] / textures[i]->getWidth())),
+								textures[i]->getOriginX() + (testingPoints[i][j + 1] % textures[i]->getWidth()),
+								textures[i]->getOriginY() + (int)(floor(testingPoints[i][j + 1] / textures[i]->getWidth())));
+						}
+					}
+				}
+				//rdp
+				if (getSimplifiedOutline) {
+					printf("New Frame\n");
+					for (int i = 0; i < testingPoints.size(); i++) {
+						std::vector<int> rdpPoints;
+						rdpPoints.push_back(testingPoints[i][0]);
+						rdp(0, testingPoints[i].size() - 1, 5, textures[i]->getWidth(), testingPoints[i], rdpPoints);
+						rdpPoints.push_back(testingPoints[i][testingPoints[i].size() - 1]);
+						printf("rdpPoints size: %i\n", (int)rdpPoints.size());
+						for (int j = 0; j < rdpPoints.size() - 1; j++) {
+							SDL_SetRenderDrawColor(gRenderer, 0x00, 0xFF, 0x00, 0xFF);
+							SDL_RenderDrawLine(gRenderer, textures[i]->getOriginX() + (rdpPoints[j] % textures[i]->getWidth()),
+								textures[i]->getOriginY() + (int)(floor(rdpPoints[j] / textures[i]->getWidth())),
+								textures[i]->getOriginX() + (rdpPoints[j + 1] % textures[i]->getWidth()),
+								textures[i]->getOriginY() + (int)(floor(rdpPoints[j + 1] / textures[i]->getWidth())));
+							//printf("Next Point: %i\n", rdpPoints[j]);
+						}
+						printf("Moving onto a new Texture\n");
+					}
 				}
 				SDL_RenderPresent(gRenderer);
 			}

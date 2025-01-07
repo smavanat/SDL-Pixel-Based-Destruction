@@ -1,54 +1,28 @@
-Basically, there are two situations in which we can split the textures, when the pixels are scaled (eg one 
-"pixel" is actually a 4x4 square of pixels) and when the pixels are unscaled.
-Some prerequisites that we need for this:
-	- The pixel buffer array
-	- An array that is the same size of the pixel buffer array and is initially populated with 0s
-		Every time we visit a pixel in the buffer array we set its value in the second array to 1
-		This means we can see which pixels we have visited and skip them if we ever happen to go over them.
-	- We only want to consider pixels that are coloured and have a neighbouring pixel that is not coloured.
-		Ignore all other pixels
-When we find a pixel that is coloured but is next to erased pixels, we move in two directions away from it,
-performing DFS to follow the edge of coloured pixels next to erased pixels until either we hit an edge or 
-the two paths intersect. We mark each pixel we visit in the DFS as visited in our array
-When figuring out how to split the texture when the pixels are unscaled, we need to consider several cases:
-1) The two dfs paths do not intersect 
-	This means the dfs paths have both reached the edge of the texture
-	Once the edges have been found, we switch to following the edge going along erased pixels until either 
-	the paths intersect, in which case we do not do anything as we simply have an indent in the texture,
-	or we hit the opposite side where there are coloured pixels. 
-	In the second case, this allows us to essentially imagine rectangles around the two split shapes and 
-	calculate the areas of these rectangles. The contents of the smaller rectangle are copied into a new 
-	texture while the bigger rectangle stays in the current texture and all of the pixels that moved to the 
-	new texture are set to the erased value
-2) The two dfs paths intersect
-	This means there is either a hole in the texture, or that islets have been created within the texture
-	We would in this case draw lines between each pair of of pixels on the same row
-	If there are no coloured pixels between them, move on since there is just a hole.
-	If we hit a coloured pixel, run dfs again to get the outline of the islet, and then remove it from the
-	texture as we did before
+How the basic texture splitting works:
+Essentially, each texture contains a flag which is set to true whenever the texture is altered by the erase function
+When this occurs the program iterates over the texture, performing the flood-fill algorithm (essentially just fancy bfs) 
+whenever it finds a non-transparent pixel to find all other non-transparent pixels that can be reached from it.
+This region of the original texture is then transformed into a new pixel buffer using some fancy array manipulation, which
+is then used to create a new texture. 
+The pixels in this region of the original texture are set to transparent, and the process repeats until we have iterated 
+over the whole of the original texture. At this point, we delete the original texture.
+This has been fully implemented and it works well, so no need to worry about it.
 
-Cleanup:
-	After we have dealt with all of the texture splitting, we need to find the dimensions of the remaining texture
-	If it still covers the same rectangular area as before, do nothing,
-	Otherwise create a new texture of a smaller size and copy the pixels over and delete the old texture.
+Theories on how to integrate box2d into the program:
+Having had a look at the box2d docs, I think there are two main problems to solve.
+1) How to get pixel co-ordinates to actual co-ordinates
+2) How to actually attach a shape body to a texture
 
-How to move off in two directions:
-	Pick first two elements in the possiblePursuits vector
-	Set them to visited
-	Find all of their neighbours that are also coloured but surrounded by erased
-	Check which ones of those have been visited
-	Remove the visited ones from the list of possible paths
-	Pick one
-	Repeat until the two elements are in the same position in the pixel array or they have hit an edge
-
-	But how do I do the repeat thing?
-	First idea is do-while loop, but what conditions would I use?
-	You need to keep track of both, but if one hits an edge, you need to keep going with the other one.
-	Nested while loops?
-	That could work
-	Not quite sure how nested while loops work but some testing won't hurt.
-	The conditions I need to keep track of are (is first path at an edge) (is second path at an edge) and
-	(are they in the same position)
-
-	Also need to figure out how I am going to get the neighbours. I think I should change the function
-	so that it only gets the cardinal neighbours rather than all of them but that is not the priority right now
+For 1), I think this is just some googling and maybe following some intro tutorials, perhaps like the one here:
+https://www.youtube.com/watch?app=desktop&v=kEClRFKyGkw&t=0s&ab_channel=MakingGamesWithBen
+But that is something that should be watched at my own leisure.
+For 2), I think the polygon objects discussed in the docs here: https://box2d.org/documentation/md_collision.html#autotoc_md35
+are probably the best bet at creating dynamic colliders. 
+By the looks of it, I can forego the triangulation algorithm, and just do Marching Squares and Douglas-Peucker. This should
+give me something that works. 
+Now I just need to implement these two algorithms, which is far easier said than done.
+So, essentially, Marching Squares will help me find the outline, which I think can be done just using the existing get 
+cardinal neighbours and storing the relevant co-ordinates of the pixel. 
+The real challenge will be implementing Douglas-Peucker. Great explanation of the algorithm here: https://www.youtube.com/watch?v=nSYw9GrakjY&ab_channel=TheCodingTrain
+We can test if its outline is correct by using the SDL_RenderDrawLine() function as described here: https://lazyfoo.net/tutorials/SDL/08_geometry_rendering/index.php
+Ramer-Douglas-Peucker seems very doable and very understandable.
