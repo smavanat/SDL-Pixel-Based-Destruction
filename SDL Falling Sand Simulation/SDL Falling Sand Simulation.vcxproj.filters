@@ -42,7 +42,7 @@
     <ClCompile Include="Texture.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="MarchingSquares.cpp">
+    <ClCompile Include="Outline.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -59,7 +59,7 @@
     <ClInclude Include="Texture.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="MarchingSquares.hpp">
+    <ClInclude Include="Outline.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

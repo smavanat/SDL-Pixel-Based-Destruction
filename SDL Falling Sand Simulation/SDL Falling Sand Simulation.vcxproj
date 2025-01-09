@@ -141,7 +141,7 @@
   <ItemGroup>
     <ClCompile Include="Box.cpp" />
     <ClCompile Include="CircleDraw.cpp" />
-    <ClCompile Include="MarchingSquares.cpp" />
+    <ClCompile Include="Outline.cpp" />
     <ClCompile Include="Pixel Clicker.cpp" />
     <ClCompile Include="Paint.cpp" />
     <ClCompile Include="Test.cpp" />
@@ -151,7 +151,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Game.h" />
-    <ClInclude Include="MarchingSquares.hpp" />
+    <ClInclude Include="Outline.hpp" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="Texture.hpp" />
     <ClInclude Include="TextureManager.h" />
