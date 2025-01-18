@@ -31,6 +31,8 @@ class Texture {
 
 		void render(SDL_Renderer* gRenderer);
 
+		void render(SDL_Renderer* gRenderer, SDL_Rect* clip, double angle, SDL_Point* centre, SDL_RendererFlip flip);
+
 		void markAsAltered();
 
 		void resetSplittingFlag();

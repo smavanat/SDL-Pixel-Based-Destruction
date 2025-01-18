@@ -161,7 +161,21 @@ void Texture::render(SDL_Renderer* gRenderer) {
 	SDL_Rect renderQuad = { originX, originY, width, height };
 	SDL_RenderCopy(gRenderer, texture, NULL, &renderQuad);
 }
-	
+
+//When need a rotateable texture
+void Texture::render(SDL_Renderer* gRenderer, SDL_Rect* clip, double angle, SDL_Point* centre, SDL_RendererFlip flip) {
+	SDL_Rect renderQuad = { originX, originY, width, height };
+
+	//Set clip rendering dimensions
+	if (clip != NULL)
+	{
+		renderQuad.w = clip->w;
+		renderQuad.h = clip->h;
+	}
+
+	SDL_RenderCopyEx(gRenderer, texture, clip, &renderQuad, angle, centre, flip);
+}
+
 void Texture::markAsAltered() {
 	needsSplitting = true;
 }

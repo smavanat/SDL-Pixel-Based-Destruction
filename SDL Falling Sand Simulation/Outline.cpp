@@ -219,12 +219,13 @@ Texture* constructNewPixelBuffer(std::vector<int> indexes, int* visitedTracker, 
 	//temporarily when we call it, but we need to increase width permanently, as otherwise it gets messed up in 
 	//multiplication calls.
 	width += 2;
+	height += 2;
 	//Creating the pixel buffer for the new texture
-	newPixelBuffer = new Uint32[(width) * (height + 2)];
+	newPixelBuffer = new Uint32[(width) * (height)];
 	//The memset here is actually making all the pixels have an alpha of 255 for some reason, even though noPixelColour has an alpha of 0.
 	//memset(newPixelBuffer, noPixelColour, width * height * sizeof(Uint32));//Filling it with transparent pixels
 	//Using a for loop instead of memset fixes the alpha problem here.
-	for (int i = 0; i < (width) * (height + 2); i++) {
+	for (int i = 0; i < ((width) * (height)); i++) {
 		newPixelBuffer[i] = noPixelColour;
 	}
 
@@ -476,7 +477,7 @@ std::vector<Texture*> splitTextureAtEdge(Texture* texture, SDL_Renderer* gRender
 			if (startIndex != nextIndex) {
 				rdp(startIndex, nextIndex, epsilon, arrayWidth, allPoints, rdpPoints);
 			}
-			rdpPoints.push_back(allPoints[nextIndex]); //I don't think this line is working. I think the rdp vector still just has the start and end points and that is it.
+			rdpPoints.push_back(allPoints[nextIndex]); 
 			if (endIndex != nextIndex) {
 				rdp(nextIndex, endIndex, epsilon, arrayWidth, allPoints, rdpPoints);
 			}
