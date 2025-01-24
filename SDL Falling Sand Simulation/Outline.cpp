@@ -7,12 +7,16 @@
 #include<algorithm>
 #include "Texture.hpp"
 #include "Outline.hpp"
+#include "Maths.h"
+
+//TODO: Need to make sure that new textures also originate at rotated origin not unrotated one.
 
 #pragma region splitTexture
 void erasePixels(Texture* texture, SDL_Renderer* gRenderer, int scale, int x, int y) {
+	Vector2 newOrigin = rotateAboutPoint(newVector2(x, y), texture->getCentre(), -texture->getAngle(), false);
 
-	x -= texture->getOriginX();
-	y -= texture->getOriginY();
+	x = newOrigin.x - texture->getOrigin().x;
+	y = newOrigin.y - texture->getOrigin().y;
 
 	Uint32* pixels = texture->getPixels32();
 
@@ -36,7 +40,7 @@ void erasePixels(Texture* texture, SDL_Renderer* gRenderer, int scale, int x, in
 		pixels[y * texture->getWidth() + x] = transparent;
 	}
 
-	texture->loadFromPixels(gRenderer); //This is the bit that is causing all the bugs. Why??
+	texture->loadFromPixels(gRenderer); 
 	texture->markAsAltered();
 }
 
@@ -256,11 +260,11 @@ Texture* constructNewPixelBuffer(std::vector<int> indexes, int* visitedTracker, 
 	}
 
 	//This works. Still need to fix the alpha issue. Used pointers otherwise this doesn't work.
-	int originX = texture->getOriginX() + (startLinePos)-1; //-1 for transparent pixel border, so that the texture is not offset by one because of the invisible perimeter.
-	int originY = texture->getOriginY() + ((int)floor(indexes[0] / arrayWidth)) - 1;
+	int originX = texture->getOrigin().x + (startLinePos)-1; //-1 for transparent pixel border, so that the texture is not offset by one because of the invisible perimeter.
+	int originY = texture->getOrigin().y + ((int)floor(indexes[0] / arrayWidth)) - 1;
 
 	//Set this as a pointer as otherwise this variable will be destroyed once this method finishes.
-	newTexture = new Texture(originX, originY, width, height, newPixelBuffer, gRenderer);
+	newTexture = new Texture(originX, originY, width, height, newPixelBuffer, gRenderer, texture->getAngle());
 
 	cleanup(pixels, noPixelColour, indexes);
 	return newTexture;

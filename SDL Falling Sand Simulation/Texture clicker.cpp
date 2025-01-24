@@ -7,11 +7,15 @@
 #include<PolyPartition/polypartition.h>
 #include "Texture.hpp"
 #include "Outline.hpp"
+#include "Maths.h"
 
-//TODO: Figure out why collider oversimplification is occuring
-//		Figure out how to account for rotation
-//		Figure out why there's an odd movement of textures when new colliders are formed.
-//		Figure out why the vector subscript has a seizure. Now only when do 6-8 colliders
+//TODO: Figure out why collider oversimplification is occuring -> Made epsilon smaller is a simple fix. 
+//		But this isn't the best fix. Need to have a closer look at the functions causing this issue.
+//		Figure out why there's an odd movement of textures when new colliders are formed. 
+//		It might be because of the invisible transparent buffer around each texture, so the colliders are formed
+//		one pixel up and to the right. Need to have a look at this in more detail.
+//		Sometimes colliders fail to generate for some reason. Have a look at why the ret variable in ConvexPartition_OPT
+//		in polypartition returns 0. Because that is what is causing it, even if the texture is valid.
 
 const int SCREEN_WIDTH = 640;
 const int SCREEN_HEIGHT = 480;
@@ -21,7 +25,7 @@ const float pixelsToMetres = 1.0f / metresToPixels;
 ////Some global variables
 SDL_Window* gWindow = NULL;
 SDL_Renderer* gRenderer = NULL;
-Texture testTexture = Texture(192, 10);
+Texture testTexture = Texture(192, 140);
 b2WorldDef worldDef;
 b2WorldId worldId;
 
@@ -63,6 +67,13 @@ b2Vec2* convertToVec2(TPPLPoint* polyPoints, int numPoints) {
 	return points;
 }
 
+void rotateTranslate(b2Vec2& vector, float angle) {
+	b2Vec2 tmp;
+	tmp.x = vector.x * cos(angle) - vector.y * sin(angle);
+	tmp.y = vector.x * sin(angle) + vector.y * cos(angle);
+	vector = tmp;	
+}
+
 //Necessary to check which colliders to remove from vector since c++ does not generate default comparators for structs.
 bool operator ==(const b2BodyId& lhs, const b2BodyId& rhs) {
 	if (lhs.index1 == rhs.index1 && lhs.revision == rhs.revision && lhs.world0 == rhs.world0) return true;
@@ -71,12 +82,16 @@ bool operator ==(const b2BodyId& lhs, const b2BodyId& rhs) {
 
 //This doesn't always work. Maybe true pure triangulation? Or at least try and find the cause. The
 //program sometimes oversimplifies the collider outline.
-void createTexturePolygon(std::vector<int> rdpPoints, int arrayWidth, int x, int y) {
+void createTexturePolygon(std::vector<int> rdpPoints, int arrayWidth, int x, int y, double angle) {
 	b2Vec2* points = getVec2Array(rdpPoints, arrayWidth, x, y);
+	/*for (int i = 0; i < rdpPoints.size(); i++) {
+		rotateTranslate(points[i], angle * DEGREES_TO_RADIANS);
+	}*/
 
 	b2BodyDef testbodyDef = b2DefaultBodyDef();
 	testbodyDef.type = b2_dynamicBody;
 	testbodyDef.position = { static_cast<float>(x)* pixelsToMetres, static_cast<float>(y)*pixelsToMetres };
+	testbodyDef.rotation = {(float)cos(angle * DEGREES_TO_RADIANS), (float)sin(angle * DEGREES_TO_RADIANS) };
 	b2BodyId testId = b2CreateBody(worldId, &testbodyDef);
 	//This isn't working because the polygons have more than 8 vertices, which causes b2ComputeHull to fail.
 	//Will have to implement a polypartition algorithm to fix for polygons with vertices > 8.
@@ -112,13 +127,7 @@ void createTexturePolygon(std::vector<int> rdpPoints, int arrayWidth, int x, int
 		printf("Finished Printing\n");*/
 
 		for (TPPLPolyList::iterator it = polyList.begin(); it != polyList.end(); ++it) {
-			//For some reason the list feeds degenerate inputs to the hull on the last input. Idk why. 
-			//This means the last polygon isn't being generated. Why the fuck not.
-			//Ok so for some reason the last polygon in every list has three vertices, two of which are the fucking same.
-			//Why?? How knows. But that's why b2ComputeHull won't work, because there isn't any hull to compute.
-			//Need to check that this is true in the polylist and not just the one returned from the function.
-			//FIXED: Used ConvexPartition_OPT instead of ConvexPartition_HM. I think the ear clipping was what fucked it 
-			//up originally.
+			//FIXED: Used ConvexPartition_OPT instead of ConvexPartition_HM.
 			b2Hull hull = b2ComputeHull(convertToVec2(it->GetPoints(), it->GetNumPoints()), it->GetNumPoints());
 			if (hull.count == 0) {
 				printf("Something odd has occured when generating a hull from a polyList\n");
@@ -135,7 +144,7 @@ void createTexturePolygon(std::vector<int> rdpPoints, int arrayWidth, int x, int
 	else {
 		b2Hull hull = b2ComputeHull(points, rdpPoints.size());
 		if (hull.count == 0) {
-			printf("Something odd Has occured when generating a hull from a polygon\n");
+			printf("Something odd has occured when generating a hull from a polygon\n");
 		}
 		else {
 			b2Polygon testagon = b2MakePolygon(&hull, 0.0f);
@@ -208,11 +217,6 @@ bool init()
 		b2ShapeDef groundShapeDef = b2DefaultShapeDef();
 		b2CreatePolygonShape(groundId, &groundShapeDef, &groundBox);
 		statics.push_back(groundId);
-		//So that there is some sort of default collider to go along with a default texture.
-		b2BodyDef tempBodyDef = b2DefaultBodyDef();
-		tempBodyDef.position = { 192.0f * pixelsToMetres, 10.0f * pixelsToMetres };
-		b2BodyId tempId = b2CreateBody(worldId, &tempBodyDef);
-		colliders.push_back(tempId);
 	}
 	return success;
 }
@@ -235,6 +239,17 @@ bool loadMedia()
 			printf("Unable to load Foo' texture from surface!\n");
 		}
 	}
+
+	//So that there is some sort of default collider to go along with a default texture.
+	b2BodyDef tempBodyDef = b2DefaultBodyDef();
+	tempBodyDef.position = { testTexture.getOrigin().x * pixelsToMetres, testTexture.getOrigin().y * pixelsToMetres };
+	tempBodyDef.type = b2_dynamicBody;
+	b2BodyId tempId = b2CreateBody(worldId, &tempBodyDef);
+	b2Polygon tempBox = b2MakeOffsetBox((testTexture.getWidth() / 2) * pixelsToMetres, (testTexture.getHeight() / 2) * pixelsToMetres, { (testTexture.getWidth() / 2) * pixelsToMetres, (testTexture.getHeight() / 2) * pixelsToMetres }, 0);
+	//b2Polygon tempBox = b2MakeBox((testTexture.getWidth()/2) * pixelsToMetres, (testTexture.getHeight()/2) * pixelsToMetres);
+	b2ShapeDef tempShapeDef = b2DefaultShapeDef();
+	b2CreatePolygonShape(tempId, &tempShapeDef, &tempBox);
+	colliders.push_back(tempId);
 
 	return success;
 }
@@ -278,6 +293,7 @@ int main(int argc, char* args[]) {
 			bool getOutline = false;
 			bool getSimplifiedOutline = false;
 			bool getColliderOutlines = false;
+			//double angle = 0;
 
 			SDL_Event e;
 			while (!quit) {
@@ -293,8 +309,6 @@ int main(int argc, char* args[]) {
 							std::vector<Texture*> texturesToRemove;
 							std::vector<Texture*> texturesToAdd;
 							std::vector<b2BodyId> collidersToRemove;
-							std::vector<std::vector<int>> testingPointsToRemove;
-							std::vector<std::vector<int>> rdpPointsToRemove;
 
 							for(int i = 0; i < textures.size(); i++) {
 								if (textures[i]->isAltered()) {
@@ -304,8 +318,6 @@ int main(int argc, char* args[]) {
 									textures[i]->resetSplittingFlag();
 									texturesToRemove.push_back(textures[i]);
 									collidersToRemove.push_back(colliders[i]);
-									testingPointsToRemove.push_back(testingPoints[i]);
-									rdpPointsToRemove.push_back(rdpPoints[i]);
 								}
 							}
 
@@ -313,16 +325,14 @@ int main(int argc, char* args[]) {
 								textures.push_back(t);
 
 								std::vector<int> tempPoints = marchingSquares(t);
-								testingPoints.push_back(tempPoints);
 
 								std::vector<int> temprdpPoints;
 								//Position at size()-2 is where 0 is stored, which is what we want. This will give us the 
 								//straight line that we want.
 								temprdpPoints.push_back(tempPoints[tempPoints.size() - 2]);
-								rdp(0, tempPoints.size() - 1, 5, t->getWidth(), tempPoints, temprdpPoints);
+								rdp(0, tempPoints.size() - 1, 3, t->getWidth(), tempPoints, temprdpPoints);
 								temprdpPoints.push_back(tempPoints[tempPoints.size() - 2]);
-								rdpPoints.push_back(temprdpPoints);
-								createTexturePolygon(temprdpPoints, t->getWidth(), t->getOriginX(), t->getOriginY());
+								createTexturePolygon(temprdpPoints, t->getWidth(), t->getOrigin().x, t->getOrigin().y, t->getAngle());
 							}
 							texturesToAdd.clear();
 
@@ -331,38 +341,6 @@ int main(int argc, char* args[]) {
 								t->free();
 							}
 							texturesToRemove.clear();
-
-							for (std::vector<int> i : testingPointsToRemove) {
-								testingPoints.erase(find(testingPoints.begin(), testingPoints.end(), i));
-							}
-							testingPointsToRemove.clear();
-
-							for (std::vector<int> i : rdpPointsToRemove) {
-								rdpPoints.erase(find(testingPoints.begin(), testingPoints.end(), i));
-							}
-							rdpPointsToRemove.clear();
-
-							//Need to re-write the below for blocks so I don't keep iterating over all the textures.
-							//Probably need to stick them in the inner for loop at the top of this block
-							//I so cba
-							//testingPoints.clear();
-							//for (int i = 0; i < textures.size(); i++) {
-							//	std::vector<int> tempPoints = marchingSquares(textures[i]);
-							//	testingPoints.push_back(tempPoints);
-							//}
-
-							//rdpPoints.clear();
-							//for (int i = 0; i < textures.size(); i++) {
-							//	printf("Texture No: %i", i);
-							//	std::vector<int> tempPoints;
-							//	//Position at size()-2 is where 0 is stored, which is what we want. This will give us the 
-							//	//straight line that we want.
-							//	tempPoints.push_back(testingPoints[i][testingPoints[i].size() - 2]);
-							//	rdp(0, testingPoints[i].size() - 1, 5, textures[i]->getWidth(), testingPoints[i], tempPoints);
-							//	tempPoints.push_back(testingPoints[i][testingPoints[i].size() - 2]);
-							//	rdpPoints.push_back(tempPoints);
-							//	createTexturePolygon(tempPoints, textures[i]->getWidth(), textures[i]->getOriginX(), textures[i]->getOriginY());
-							//}
 
 							for (b2BodyId id : collidersToRemove) {
 								colliders.erase(find(colliders.begin(), colliders.end(), id));
@@ -388,8 +366,10 @@ int main(int argc, char* args[]) {
 							getSimplifiedOutline = false;
 
 							for (Texture* t : textures) {
-								if (e.motion.x >= t->getOriginX() && e.motion.x < t->getOriginX() + t->getWidth()
-									&& e.motion.y < t->getOriginY() + t->getHeight() && e.motion.y >= t->getOriginY()) {
+								
+								Vector2 rotated = rotateAboutPoint(newVector2(e.motion.x, e.motion.y), t->getCentre(), -t->getAngle(), false);
+								if (rotated.x >= t->getOrigin().x && rotated.x < t->getOrigin().x + t->getWidth() &&
+									rotated.y < t->getOrigin().y + t->getHeight() && rotated.y >= t->getOrigin().y) {
 									erasePixels(t, gRenderer, scale, e.motion.x, e.motion.y);
 								}
 							}
@@ -399,8 +379,8 @@ int main(int argc, char* args[]) {
 							SDL_GetMouseState(&x, &y);
 							//for (Texture* t : textures) {
 							for(int i = 0; i < textures.size(); i++) {
-								if (e.motion.x >= textures[i]->getOriginX() && e.motion.x < textures[i]->getOriginX() + textures[i]->getWidth()
-									&& e.motion.y < textures[i]->getOriginY() + textures[i]->getHeight() && e.motion.y >= textures[i]->getOriginY()
+								if (e.motion.x >= textures[i]->getOrigin().x && e.motion.x < textures[i]->getOrigin().x + textures[i]->getWidth()
+									&& e.motion.y < textures[i]->getOrigin().y + textures[i]->getHeight() && e.motion.y >= textures[i]->getOrigin().y
 									&& !textures[i]->clickedOnTransparent(e.motion.x, e.motion.y)) {
 									//dragTexture = t;
 									dragIndex = i;
@@ -412,16 +392,17 @@ int main(int argc, char* args[]) {
 					case SDL_MOUSEMOTION:
 						if (leftMouseButtonDown && e.motion.x >= 0 && e.motion.x < 640 && e.motion.y < 480 && e.motion.y >= 0) {
 							for (Texture* t : textures) {
-								if (e.motion.x >= t->getOriginX() && e.motion.x < t->getOriginX() + t->getWidth()
-									&& e.motion.y < t->getOriginY() + t->getHeight() && e.motion.y >= t->getOriginY()) {
+								Vector2 rotated = rotateAboutPoint(newVector2(e.motion.x, e.motion.y), t->getCentre(), -t->getAngle(), false);
+								if (rotated.x >= t->getOrigin().x && rotated.x < t->getOrigin().x + t->getWidth() &&
+									rotated.y < t->getOrigin().y + t->getHeight() && rotated.y >= t->getOrigin().y) {
 									erasePixels(t, gRenderer, scale, e.motion.x, e.motion.y);
 								}
 							}
 						}
 						//Dragging functionality
 						if (dragIndex != -1) {
-							int newX = textures[dragIndex]->getOriginX() + e.motion.xrel;
-							int newY = textures[dragIndex]->getOriginY() + e.motion.yrel;
+							int newX = textures[dragIndex]->getOrigin().x + e.motion.xrel;
+							int newY = textures[dragIndex]->getOrigin().y + e.motion.yrel;
 							textures[dragIndex]->setOrigin(newX, newY);
 							//b2Body_SetTransform(colliders[dragIndex], { newX*pixelsToMetres, newY*pixelsToMetres }, b2Body_GetRotation(colliders[dragIndex]));
 						}
@@ -429,9 +410,29 @@ int main(int argc, char* args[]) {
 					case SDL_KEYDOWN:
 						if (e.key.keysym.sym == SDLK_o) {
 							getOutline = !getOutline;
+							if (getOutline) {
+								testingPoints.clear();
+								for (int i = 0; i < textures.size(); i++) {
+									std::vector<int> tempPoints = marchingSquares(textures[i]);
+									testingPoints.push_back(tempPoints);
+								}
+							}
 						}
 						if (e.key.keysym.sym == SDLK_s) {
 							getSimplifiedOutline = !getSimplifiedOutline;
+							if (getSimplifiedOutline) {
+								rdpPoints.clear();
+								for (int i = 0; i < textures.size(); i++) {
+									//printf("Texture No: %i", i);
+									std::vector<int> tempPoints;
+									//Position at size()-2 is where 0 is stored, which is what we want. This will give us the 
+									//straight line that we want.
+									tempPoints.push_back(testingPoints[i][testingPoints[i].size() - 2]);
+									rdp(0, testingPoints[i].size() - 1, 3, textures[i]->getWidth(), testingPoints[i], tempPoints);
+									tempPoints.push_back(testingPoints[i][testingPoints[i].size() - 2]);
+									rdpPoints.push_back(tempPoints);
+								}
+							}
 						}
 						if (e.key.keysym.sym == SDLK_c) {
 							/*b2Vec2 comparator = b2Vec2();
@@ -459,6 +460,16 @@ int main(int argc, char* args[]) {
 							}*/
 							getColliderOutlines = !getColliderOutlines;
 						}
+						if (e.key.keysym.sym == SDLK_a && textures.size() == 1) {
+							textures[0]->setAngle(textures[0]->getAngle() - 1);
+							b2Rot angle = { cos(textures[0]->getAngle() * DEGREES_TO_RADIANS), sin(textures[0]->getAngle() * DEGREES_TO_RADIANS) };
+							b2Body_SetTransform(colliders[0], b2Body_GetPosition(colliders[0]), angle);
+						}
+						if (e.key.keysym.sym == SDLK_d && textures.size() == 1) {
+							textures[0]->setAngle(textures[0]->getAngle() + 1);
+							b2Rot angle = { cos(textures[0]->getAngle() * DEGREES_TO_RADIANS), sin(textures[0]->getAngle() * DEGREES_TO_RADIANS) };
+							b2Body_SetTransform(colliders[0], b2Body_GetPosition(colliders[0]), angle);
+						}
 						break;
 					}
 				}
@@ -466,18 +477,20 @@ int main(int argc, char* args[]) {
 				SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
 				SDL_RenderClear(gRenderer);
 
-				for (Texture* t : textures) {
-					t->render(gRenderer, NULL, 0.0, NULL, SDL_FLIP_NONE);
+				for (int i = 0; i < textures.size(); i++) {
+					//double angle = b2Rot_GetAngle(b2Body_GetRotation(colliders[i])) * (360/(2* M_PI));
+					textures[i]->render(gRenderer, NULL, textures[i]->getAngle(), NULL, SDL_FLIP_NONE);
 				}
+
 				//Marching squares
 				if (getOutline) {
 					for (int i = 0; i < testingPoints.size(); i++) {
 						for (int j = 0; j < testingPoints[i].size() - 1; j++) {
 							SDL_SetRenderDrawColor(gRenderer, 0x00, 0x00, 0xFF, 0xFF);
-							SDL_RenderDrawLine(gRenderer, textures[i]->getOriginX() + (testingPoints[i][j] % textures[i]->getWidth()),
-								textures[i]->getOriginY() + (int)(floor(testingPoints[i][j] / textures[i]->getWidth())),
-								textures[i]->getOriginX() + (testingPoints[i][j + 1] % textures[i]->getWidth()),
-								textures[i]->getOriginY() + (int)(floor(testingPoints[i][j + 1] / textures[i]->getWidth())));
+							SDL_RenderDrawLine(gRenderer, textures[i]->getOrigin().x + (testingPoints[i][j] % textures[i]->getWidth()),
+								textures[i]->getOrigin().y + (int)(floor(testingPoints[i][j] / textures[i]->getWidth())),
+								textures[i]->getOrigin().x + (testingPoints[i][j + 1] % textures[i]->getWidth()),
+								textures[i]->getOrigin().y + (int)(floor(testingPoints[i][j + 1] / textures[i]->getWidth())));
 						}
 					}
 				}
@@ -486,10 +499,10 @@ int main(int argc, char* args[]) {
 					for (int i = 0; i < rdpPoints.size(); i++) {
 						for (int j = 0; j < rdpPoints[i].size() - 1; j++) {
 							SDL_SetRenderDrawColor(gRenderer, 0xFF, 0x00, 0x00, 0xFF);
-							SDL_RenderDrawLine(gRenderer, textures[i]->getOriginX() + (rdpPoints[i][j] % textures[i]->getWidth()),
-								textures[i]->getOriginY() + (int)(floor(rdpPoints[i][j] / textures[i]->getWidth())),
-								textures[i]->getOriginX() + (rdpPoints[i][j + 1] % textures[i]->getWidth()),
-								textures[i]->getOriginY() + (int)(floor(rdpPoints[i][j + 1] / textures[i]->getWidth())));
+							SDL_RenderDrawLine(gRenderer, textures[i]->getOrigin().x + (rdpPoints[i][j] % textures[i]->getWidth()),
+								textures[i]->getOrigin().y + (int)(floor(rdpPoints[i][j] / textures[i]->getWidth())),
+								textures[i]->getOrigin().x + (rdpPoints[i][j + 1] % textures[i]->getWidth()),
+								textures[i]->getOrigin().y + (int)(floor(rdpPoints[i][j + 1] / textures[i]->getWidth())));
 						}
 					}
 				}
@@ -526,6 +539,9 @@ int main(int argc, char* args[]) {
 									break;
 								}
 							}
+							for (int k = 0; k < lastVertex + 1; k++) {
+								rotateTranslate(colliderVertices[k], b2Rot_GetAngle(b2Body_GetRotation(colliders[i])));
+							}
 							for (int k = 0; k < lastVertex+1; k++) {
 								SDL_RenderDrawLine(gRenderer, ((colliderVertices[k].x + colliderPosition.x)* metresToPixels), ((colliderVertices[k].y + colliderPosition.y)* metresToPixels),
 									((colliderVertices[(k + 1) > lastVertex ? 0 : (k + 1)].x + colliderPosition.x)* metresToPixels), ((colliderVertices[(k + 1) > lastVertex ? 0 : (k + 1)].y + colliderPosition.y)* metresToPixels));
@@ -533,6 +549,19 @@ int main(int argc, char* args[]) {
 						}
 					}
 				}
+
+				//Testing testTexture origin after rotation:
+				//Try using top comment of this: https://math.stackexchange.com/questions/2093314/rotation-matrix-of-rotation-around-a-point-other-than-the-origin
+				/*int vecX = (textures[0]->getWidth() / 2) - textures[0]->getOriginX();
+				int vecY = (textures[0]->getHeight() / 2) - textures[0]->getOriginY();
+				int tempX = vecX * cos(textures[0]->getAngle() * (M_PI / 180)) + vecY * sin(textures[0]->getAngle() * (M_PI / 180));
+				int tempY = vecX * -sin(textures[0]->getAngle() * (M_PI / 180)) + vecY * cos(textures[0]->getAngle() * (M_PI / 180));
+				tempX += textures[0]->getWidth() / 2;
+				tempY += textures[0]->getHeight() / 2;*/
+				//printf("VecX: %i, VecY: %i, tempX: %i, tempY: %i", vecX, vecY, tempX, tempY);
+				Vector2 newOrigin = rotateAboutPoint(textures[0]->getOrigin(), textures[0]->getCentre(), textures[0]->getAngle(), false);
+				SDL_SetRenderDrawColor(gRenderer, 0xFF, 0x00, 0x00, 0xFF);
+				SDL_RenderDrawPoint(gRenderer, newOrigin.x, newOrigin.y);
 				//Updating graphics
 				SDL_RenderPresent(gRenderer);
 
@@ -543,7 +572,12 @@ int main(int argc, char* args[]) {
 					b2Vec2 position = b2Body_GetPosition(colliders[i]);
 					b2Rot rotation = b2Body_GetRotation(colliders[i]);
 					//printf("Pos: %4.2f %4.2f Angle: %4.2f", position.x*metresToPixels, position.y* metresToPixels, b2Rot_GetAngle(rotation));
-					textures[i]->setOrigin(position.x * metresToPixels, position.y * metresToPixels);
+					//if (textures.size() > 1) {
+						textures[i]->setOrigin(position.x * metresToPixels, position.y * metresToPixels);
+					//}
+					/*else {
+						textures[i]->setCentre(position.x * metresToPixels, position.y * metresToPixels);
+					}*/
 				}
 			}
 		}

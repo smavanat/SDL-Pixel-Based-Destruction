@@ -1,12 +1,10 @@
 #include "Texture.hpp"
-#include<SDL.h>
-#include<stdio.h>
-#include<SDL_image.h>
 
 Texture::Texture() {
 	texture = NULL;
 	width = 0;
 	height = 0;
+	angle = 0;
 	needsSplitting = false;
 }
 	
@@ -15,15 +13,17 @@ Texture::Texture(int x, int y) {
 	texture = NULL;
 	width = 0;
 	height = 0;
+	angle = 0;
 	setOrigin(x, y);
 	needsSplitting = false;
 }
 	
 //Use when using pixel buffer.
-Texture::Texture(int x, int y, int w, int h, Uint32* pixels, SDL_Renderer* gRenderer) {
+Texture::Texture(int x, int y, int w, int h, Uint32* pixels, SDL_Renderer* gRenderer, double d) {
 	texture = NULL;
 	width = 0;
 	height = 0;
+	angle = d;
 	setOrigin(x, y);
 	needsSplitting = false;
 	surfacePixels = SDL_CreateRGBSurfaceWithFormatFrom(pixels, w, h, 32, w * 4, SDL_PIXELFORMAT_ARGB8888);//pitch is the texture width * pixelsize in bytes
@@ -96,8 +96,8 @@ bool Texture::isAltered() {
 }
 	
 bool Texture::clickedOnTransparent(int x, int y) {
-	x -= getOriginX();
-	y -= getOriginY();
+	x -= getOrigin().x;
+	y -= getOrigin().y;
 	Uint8 red, green, blue, alpha;
 	SDL_GetRGBA(getPixels32()[(y * getWidth()) + x], surfacePixels->format, &red, &green, &blue, &alpha);
 	if (alpha == 0) return true;
@@ -153,18 +153,29 @@ void Texture::free() {
 }
 	
 void Texture::setOrigin(int x, int y) {
-	originX = x;
-	originY = y;
+	origin.x = x;
+	origin.y = y;
+}
+
+void Texture::setCentre(int x, int y) {
+	int centreX = x - origin.x + width / 2;
+	int centreY = y - origin.y + height / 2;
+	origin.x -= centreX;
+	origin.y -= centreY;
+}
+
+void Texture::setAngle(double d) {
+	angle = d;
 }
 	
 void Texture::render(SDL_Renderer* gRenderer) {
-	SDL_Rect renderQuad = { originX, originY, width, height };
+	SDL_Rect renderQuad = { origin.x, origin.y, width, height };
 	SDL_RenderCopy(gRenderer, texture, NULL, &renderQuad);
 }
 
 //When need a rotateable texture
 void Texture::render(SDL_Renderer* gRenderer, SDL_Rect* clip, double angle, SDL_Point* centre, SDL_RendererFlip flip) {
-	SDL_Rect renderQuad = { originX, originY, width, height };
+	SDL_Rect renderQuad = { origin.x, origin.y, width, height };
 
 	//Set clip rendering dimensions
 	if (clip != NULL)
@@ -191,13 +202,18 @@ int Texture::getWidth() {
 int Texture::getHeight() {
 	return height;
 }
-	
-int Texture::getOriginX() {
-	return originX;
+
+double Texture::getAngle() {
+	return angle;
 }
 	
-int Texture::getOriginY() {
-	return originY;
+Vector2 Texture::getOrigin() {
+	return origin;
+}
+
+Vector2 Texture::getCentre() {
+	Vector2 vec = {origin.x + width/2, origin.y + height/2};
+	return vec;
 }
 	
 SDL_PixelFormat* Texture::getPixelFormat() {

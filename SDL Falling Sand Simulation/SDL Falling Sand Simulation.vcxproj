@@ -139,18 +139,16 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="CircleDraw.cpp" />
+    <ClCompile Include="Entity.cpp" />
+    <ClCompile Include="Maths.cpp" />
     <ClCompile Include="Outline.cpp" />
-    <ClCompile Include="Pixel Clicker.cpp" />
-    <ClCompile Include="Paint.cpp" />
-    <ClCompile Include="polypartition.cpp" />
-    <ClCompile Include="Test.cpp" />
     <ClCompile Include="Texture clicker.cpp" />
     <ClCompile Include="Texture.cpp" />
-    <ClCompile Include="TextureManipulation.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Entity.h" />
     <ClInclude Include="Game.h" />
+    <ClInclude Include="Maths.h" />
     <ClInclude Include="Outline.hpp" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="Texture.hpp" />

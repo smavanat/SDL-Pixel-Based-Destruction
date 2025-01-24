@@ -26,3 +26,6 @@ cardinal neighbours and storing the relevant co-ordinates of the pixel.
 The real challenge will be implementing Douglas-Peucker. Great explanation of the algorithm here: https://www.youtube.com/watch?v=nSYw9GrakjY&ab_channel=TheCodingTrain
 We can test if its outline is correct by using the SDL_RenderDrawLine() function as described here: https://lazyfoo.net/tutorials/SDL/08_geometry_rendering/index.php
 Ramer-Douglas-Peucker seems very doable and very understandable.
+
+Accounted for rotation using the clockwise rotation matrix: | cos(), sin() |
+															|-sin(), cos() |

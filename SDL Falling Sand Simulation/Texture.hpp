@@ -3,6 +3,7 @@
 #include<stdio.h>
 #include<SDL_image.h>
 #include<iostream>
+#include "Maths.h"
 //Texture class. This contains functionality for creating textures that are loaded from files or from dynamically
 //created pixel buffers. It has no control over manipulating its own pixels. This is handled externally.
 class Texture {
@@ -11,7 +12,7 @@ class Texture {
 
 		Texture(int x, int y);
 
-		Texture(int x, int y, int w, int h, Uint32* pixels, SDL_Renderer* gRenderer);
+		Texture(int x, int y, int w, int h, Uint32* pixels, SDL_Renderer* gRenderer, double d);
 
 		~Texture();
 
@@ -28,6 +29,10 @@ class Texture {
 		void free();
 
 		void setOrigin(int x, int y);
+		
+		void setCentre(int x, int y);
+
+		void setAngle(double d);
 
 		void render(SDL_Renderer* gRenderer);
 
@@ -39,23 +44,26 @@ class Texture {
 
 		int getWidth();
 		int getHeight();
-		int getOriginX();
-		int getOriginY();
+		double getAngle();
 
 		Uint32* getPixels32();
 		Uint32 getPitch32();
 		Uint32 mapRGBA(Uint8 r, Uint8 g, Uint8 b, Uint8 a);
 		SDL_PixelFormat* getPixelFormat();
+		Vector2 getOrigin();
+		Vector2 getCentre();
 
 	private:
 		SDL_Texture* texture;
 
 		SDL_Surface* surfacePixels;
 
+		Vector2 origin = {};
+
 		int width;
 		int height;
-		int originX;
-		int originY;
+
+		double angle;
 
 		bool needsSplitting;
 };
