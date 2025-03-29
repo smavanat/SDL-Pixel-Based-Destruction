@@ -1,15 +1,8 @@
-#include<SDL.h>
-#include<stdio.h>
-#include<SDL_image.h>
-#include<iostream>
-#include<vector>
 #include<queue>
 #include<algorithm>
-#include "Texture.hpp"
 #include "Outline.hpp"
 #include "Maths.h"
-
-//TODO: Need to make sure that new textures also originate at rotated origin not unrotated one.
+#include<PolyPartition/polypartition.h>
 
 #pragma region splitTexture
 void erasePixels(Texture* texture, SDL_Renderer* gRenderer, int scale, int x, int y) {
@@ -486,5 +479,105 @@ std::vector<Texture*> splitTextureAtEdge(Texture* texture, SDL_Renderer* gRender
 				rdp(nextIndex, endIndex, epsilon, arrayWidth, allPoints, rdpPoints);
 			}
 		}
+	}
+#pragma endregion
+
+#pragma region ColliderGeneration
+	b2Vec2* getVec2Array(std::vector<int> rdpPoints, int arrayWidth) {
+		b2Vec2* points = new b2Vec2[rdpPoints.size()];
+		for (int i = 0; i < rdpPoints.size(); i++) {
+			int* temp = convertIndexToCoords(rdpPoints[i], arrayWidth);
+			points[i] = { (temp[0]) * pixelsToMetres, (temp[1]) * pixelsToMetres };
+		}
+		return points;
+	}
+
+	b2Vec2* convertToVec2(TPPLPoint* polyPoints, int numPoints) {
+		b2Vec2* points = new b2Vec2[numPoints];
+		for (int i = 0; i < numPoints; i++) {
+			points[i].x = polyPoints[i].x;
+			points[i].y = polyPoints[i].y;
+		}
+		return points;
+	}
+
+	void rotateTranslate(b2Vec2& vector, float angle) {
+		b2Vec2 tmp;
+		tmp.x = vector.x * cos(angle) - vector.y * sin(angle);
+		tmp.y = vector.x * sin(angle) + vector.y * cos(angle);
+		vector = tmp;
+	}
+
+	//This doesn't always work. Maybe true pure triangulation? Or at least try and find the cause. The
+	//program sometimes oversimplifies the collider outline.
+	//Another issue is that the origin of polygon shapes is in the top left. This means that what we need to 
+	//do is offset the (0,0) co-ordinate to the (0,0) of the rotated texture otherwise nothing will work, and then do
+	//everything relative to that.
+	b2BodyId createTexturePolygon(std::vector<int> rdpPoints, int arrayWidth, int x, int y, double angle, b2WorldId worldId, Vector2 centre) {
+		//Getting points
+		b2Vec2* points = getVec2Array(rdpPoints, arrayWidth);
+		//Getting rotated positions
+		Vector2 rotatedPos = rotateAboutPoint(newVector2(x, y), centre, angle, false);
+
+		//Creating the b2Body
+		b2BodyDef testbodyDef = b2DefaultBodyDef();
+		testbodyDef.type = b2_dynamicBody;
+		testbodyDef.position = { static_cast<float>(rotatedPos.x) * pixelsToMetres, static_cast<float>(rotatedPos.y) * pixelsToMetres };
+		//printf("ColliderPositionX: %f, ColliderPositionY: %f\n", testbodyDef.position.x * metresToPixels, testbodyDef.position.y * metresToPixels);
+		testbodyDef.rotation = { (float)cos(angle * DEGREES_TO_RADIANS), (float)sin(angle * DEGREES_TO_RADIANS) };
+		b2BodyId testId = b2CreateBody(worldId, &testbodyDef);
+
+		//I am going to partition the polygon regardless of whether or not the number of vertices is less than 8, because
+		//Box2D does some very aggressive oversimplification of the shape outline which I'm not a fan of.
+		//It is better to just put in triangles so it can't mess things up. I am going to use triangulation instead of 
+		//partitioning to make sure Box2D keeps all of the details, as in higher-vertex convex shapes there is a change
+		//simplification could occur, which I want to avoid.
+		 
+		
+		//Creating the polypartition polygon and copying all of the points over.
+		TPPLPoly* poly = new TPPLPoly();
+		poly->Init(rdpPoints.size());
+		TPPLPolyList polyList;
+
+		for (int i = 0; i < rdpPoints.size(); i++) {
+			(*poly)[i].x = points[i].x;
+			(*poly)[i].y = points[i].y;
+		}
+
+		//The problem, which can be checked by simply looking at the points outputted here, is that (0,0) comes up twice in the
+		//list of points, so I think this confuses the partitioning algorithm. This may be a problem in how I am doing my rdp.
+		printf("Printing Poly points\n");
+		for (int i = 0; i < rdpPoints.size(); i++) {
+			printf("X: %f, Y: %f\n", (*poly)[i].x, (*poly)[i].y);
+		}
+
+		//Need to set it to be oriented Counter-Clockwise otherwise the triangulation algorithm fails.
+		poly->SetOrientation(TPPL_ORIENTATION_CCW); //This method does not actually check the order of each vertex. Need to change it so it sorts the points properly.
+		TPPLPartition test = TPPLPartition();
+		//int result = test.ConvexPartition_HM(poly, &polyList);	
+		//int result = test.ConvexPartition_OPT(poly, &polyList);
+		int result = test.Triangulate_OPT(poly, &polyList);
+		printf("Result: %i, Size: %i, ", result, polyList.size());
+		std::cout << "Valid: " << poly->Valid() <<"\n";
+
+		//Adding the polygons to the collider, or printing an error message if something goes wrong.
+		for (TPPLPolyList::iterator it = polyList.begin(); it != polyList.end(); ++it) {
+			printf("Shape Coords\n");
+			for (int i = 0; i < it->GetNumPoints(); i++) {
+				printf("%f, %f\n",it->GetPoint(i).x, it->GetPoint(i).y);
+			}
+			b2Hull hull = b2ComputeHull(convertToVec2(it->GetPoints(), it->GetNumPoints()), it->GetNumPoints());
+			if (hull.count == 0) {
+				printf("Something odd has occured when generating a hull from a polyList\n");
+			}
+			else {
+				b2Polygon testagon = b2MakePolygon(&hull, 0.0f);
+				b2ShapeDef testshapeDef = b2DefaultShapeDef();
+				testshapeDef.friction = 0.3f;
+				b2CreatePolygonShape(testId, &testshapeDef, &testagon);
+			}
+		}
+		printf("Number of shapes on the body: %i\n", b2Body_GetShapeCount(testId));
+		return testId;
 	}
 #pragma endregion

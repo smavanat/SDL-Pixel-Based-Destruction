@@ -101,6 +101,7 @@ TPPLOrientation TPPLPoly::GetOrientation() const {
   return TPPL_ORIENTATION_NONE;
 }
 
+//Need to change this so it actually orders the points properly rather than reversing the list.
 void TPPLPoly::SetOrientation(TPPLOrientation orientation) {
   TPPLOrientation polyorientation = GetOrientation();
   if (polyorientation != TPPL_ORIENTATION_NONE && polyorientation != orientation) {

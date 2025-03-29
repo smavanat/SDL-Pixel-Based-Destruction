@@ -4,7 +4,11 @@
 #include<SDL_image.h>
 #include<iostream>
 #include<vector>
+#include<box2d/box2d.h>
+#include<PolyPartition/polypartition.h>
 #include "Texture.hpp"
+const float metresToPixels = 20.0f;
+const float pixelsToMetres = 1.0f / metresToPixels;
 
 void erasePixels(Texture* texture, SDL_Renderer* gRenderer, int scale, int x, int y);
 
@@ -44,4 +48,10 @@ int findFurthest(std::vector<int> allPoints, int a, int b, int epsilon, int arra
 
 void rdp(int startIndex, int endIndex, int epsilon, int arrayWidth, std::vector<int> allPoints, std::vector<int>& rdpPoints);
 
+b2Vec2* getVec2Array(std::vector<int> rdpPoints, int arrayWidth);
 
+b2Vec2* convertToVec2(TPPLPoint* polyPoints, int numPoints);
+
+void rotateTranslate(b2Vec2& vector, float angle);
+
+b2BodyId createTexturePolygon(std::vector<int> rdpPoints, int arrayWidth, int x, int y, double angle, b2WorldId worldId, Vector2 centre);

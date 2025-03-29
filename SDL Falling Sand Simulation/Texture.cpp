@@ -158,10 +158,10 @@ void Texture::setOrigin(int x, int y) {
 }
 
 void Texture::setCentre(int x, int y) {
-	int centreX = x - origin.x + width / 2;
-	int centreY = y - origin.y + height / 2;
-	origin.x -= centreX;
-	origin.y -= centreY;
+	int centreX = x - width / 2;
+	int centreY = y - height / 2;
+	origin.x = centreX;
+	origin.y = centreY;
 }
 
 void Texture::setAngle(double d) {

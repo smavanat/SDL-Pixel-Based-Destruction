@@ -38,6 +38,7 @@ Vector2 rotateAboutPoint(Vector2 point, Vector2 centre, double angle, bool inRad
 	return ret;
 }
 
+//Creates a new Vector2
 Vector2 newVector2(int x, int y) {
 	Vector2 ret = {};
 	ret.x = x;
@@ -45,6 +46,7 @@ Vector2 newVector2(int x, int y) {
 	return ret;
 }
 
+//Creates a new Vector3
 Vector3 newVector3(int x, int y, int z) {
 	Vector3 ret = {};
 	ret.x = x;

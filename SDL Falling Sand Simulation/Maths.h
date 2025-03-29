@@ -55,12 +55,20 @@ struct Vector3 {
 	}
 };
 
+//Rotates a Vector3 about the z-axis and returns the result. Takes an angle in degrees or in radians, but if 
+//the angle is in degrees, the inRadians parameter must be set to false;
 Vector3 rotate(Vector3 vec, double angle, bool inRadians);
 
+//Rotates a Vector2 about the z-axis and returns the result. Takes an angle in degrees or in radians, but if 
+//the angle is in degrees, the inRadians parameter must be set to false;
 Vector2 rotate(Vector2 vec, double angle, bool inRadians);
 
+//Rotates a Vector2 about a point in the z-axis and returns the result. Takes an angle in degrees or in radians, 
+//but if the angle is in degrees, the inRadians parameter must be set to false.
 Vector2 rotateAboutPoint(Vector2 point, Vector2 centre, double angle, bool inRadians);
 
+//Creates a new Vector2
 Vector2 newVector2(int x, int y);
 
+//Creates a new Vector3
 Vector3 newVector3(int x, int y, int z);
