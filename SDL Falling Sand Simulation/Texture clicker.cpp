@@ -1,16 +1,13 @@
 #include "Outline.hpp"
 
-//TODO: Figure out why there's an odd movement of textures when new colliders are formed. 
-//		Might be just because colliders are adjusting for textuers with odd/even pixel count. Not a big deal
-// 
-//		Figure out why sometimes textures just disappear off the screen when a new collider is formed or just start 
-//		jittering randomly.
-// 
-//		Need to try refactoring the code to work with entities. But i dont't think this is an immediate issue.
+//TODO: Need to try refactoring the code to work with entities. But i dont't think this is an immediate issue.
 //		Focus on the other issues first.
 //		
 //		Figure out how do deal with small shapes. Colliders are not generated for them, but they are still there.
 //		Maybe just erase them? Or put a default small collider around them.
+//
+//		Figure out why textures are moving on new creation. Have a look at the calculation of centreX and centreY in
+//		constructNewPixelBuffer
 
 const int SCREEN_WIDTH = 640;
 const int SCREEN_HEIGHT = 480;
@@ -18,7 +15,7 @@ const int SCREEN_HEIGHT = 480;
 ////Some global variables
 SDL_Window* gWindow = NULL;
 SDL_Renderer* gRenderer = NULL;
-Texture testTexture = Texture(192, 140);
+Texture testTexture = Texture(320.0f, 240.0f);
 b2WorldDef worldDef;
 b2WorldId worldId;
 
@@ -92,7 +89,7 @@ bool init()
 			}
 		}
 		worldDef = b2DefaultWorldDef();
-		worldDef.gravity = { 0.0f, 1.0f };
+		worldDef.gravity = { 0.0f, 0.0f };
 		worldId = b2CreateWorld(&worldDef);
 		b2BodyDef groundBodyDef = b2DefaultBodyDef();
 		groundBodyDef.position = { 320.0f*pixelsToMetres, 460.0f * pixelsToMetres };
@@ -126,7 +123,7 @@ bool loadMedia()
 
 	//So that there is some sort of default collider to go along with a default texture.
 	std::vector<int> points = { 0, (testTexture.getHeight() - 1) * testTexture.getWidth(), (testTexture.getHeight() * testTexture.getWidth()) - 1, testTexture.getWidth() - 1 };
-	b2BodyId tempId = createTexturePolygon(points, testTexture.getWidth(), testTexture.getOrigin().x, testTexture.getOrigin().y, testTexture.getAngle(), worldId, testTexture.getCentre());
+	b2BodyId tempId = createTexturePolygon(points, testTexture.getWidth(), worldId, &testTexture);
 	colliders.push_back(tempId);
 
 	return success;
@@ -162,8 +159,6 @@ int main(int argc, char* args[]) {
 		else {
 			bool quit = false;
 			bool leftMouseButtonDown = false;
-			bool rightMouseButtonDown = false;
-			int dragIndex = -1;
 			textures.push_back(&testTexture);//This works fine now.
 			std::vector<std::vector<int>> testingPoints;
 			std::vector<std::vector<int>> rdpPoints;
@@ -207,7 +202,7 @@ int main(int argc, char* args[]) {
 								//straight line that we want. If we add origin at end as well it messes up partition so don't do that.
 								temprdpPoints.push_back(tempPoints[tempPoints.size() - 2]);
 								rdp(0, tempPoints.size() - 1, 3, t->getWidth(), tempPoints, temprdpPoints);
-								colliders.push_back(createTexturePolygon(temprdpPoints, t->getWidth(), t->getOrigin().x, t->getOrigin().y, t->getAngle(), worldId, t->getCentre()));
+								colliders.push_back(createTexturePolygon(temprdpPoints, t->getWidth(), worldId, t));
 							}
 							texturesToAdd.clear();
 
@@ -227,10 +222,6 @@ int main(int argc, char* args[]) {
 							printf("Number of Colliders: %i\n", colliders.size());
 							leftMouseButtonDown = false;
 						}
-						if (e.button.button == SDL_BUTTON_RIGHT) {
-							rightMouseButtonDown = false;
-							dragIndex = -1;
-						}
 						break;
 					case SDL_MOUSEBUTTONDOWN:
 						if (e.button.button == SDL_BUTTON_LEFT) {
@@ -247,18 +238,6 @@ int main(int argc, char* args[]) {
 								}
 							}
 						}
-						if (e.button.button == SDL_BUTTON_RIGHT && e.motion.x >= 0 && e.motion.x < 640 && e.motion.y < 480 && e.motion.y >= 0) {
-							rightMouseButtonDown = true;
-							SDL_GetMouseState(&x, &y);
-							for(int i = 0; i < textures.size(); i++) {
-								if (e.motion.x >= textures[i]->getOrigin().x && e.motion.x < textures[i]->getOrigin().x + textures[i]->getWidth()
-									&& e.motion.y < textures[i]->getOrigin().y + textures[i]->getHeight() && e.motion.y >= textures[i]->getOrigin().y
-									&& !textures[i]->clickedOnTransparent(e.motion.x, e.motion.y)) {
-									dragIndex = i;
-									break; 
-								}
-							}
-						}
 						break;
 					case SDL_MOUSEMOTION:
 						if (leftMouseButtonDown && e.motion.x >= 0 && e.motion.x < 640 && e.motion.y < 480 && e.motion.y >= 0) {
@@ -269,13 +248,6 @@ int main(int argc, char* args[]) {
 									erasePixels(t, gRenderer, scale, e.motion.x, e.motion.y);
 								}
 							}
-						}
-						//Dragging functionality
-						if (dragIndex != -1) {
-							int newX = textures[dragIndex]->getOrigin().x + e.motion.xrel;
-							int newY = textures[dragIndex]->getOrigin().y + e.motion.yrel;
-							textures[dragIndex]->setOrigin(newX, newY);
-							//b2Body_SetTransform(colliders[dragIndex], { newX*pixelsToMetres, newY*pixelsToMetres }, b2Body_GetRotation(colliders[dragIndex]));
 						}
 						break;
 					case SDL_KEYDOWN:
@@ -319,7 +291,10 @@ int main(int argc, char* args[]) {
 						}
 						if (e.key.keysym.sym == SDLK_p) {
 							for (int i = 0; i < textures.size(); i++) {
-								printf("New Position = (%i, %i)\n", textures[i]->getOrigin().x, textures[i]->getOrigin().y);
+								printf("New Position = (%f, %f)\n", textures[i]->getOrigin().x, textures[i]->getOrigin().y);
+								b2Vec2 position = b2Body_GetPosition(colliders[i]);
+								printf("Expected New Position in meters = (%f, %f)\n", position.x, position.y);
+								printf("Expected New Position in pixels = (%i, %i)\n", static_cast<int>(std::round(position.x* metresToPixels)), static_cast<int>(std::round(position.y* metresToPixels)));
 							}
 						}
 						break;
@@ -378,6 +353,7 @@ int main(int argc, char* args[]) {
 					for (int i = 0; i < colliders.size(); i++) {
 						int shapeCount = b2Body_GetShapeCount(colliders[i]);
 						b2Vec2 colliderPosition = b2Body_GetPosition(colliders[i]);
+						//printf("Collider Position: (%f, %f)", colliderPosition.x, colliderPosition.y);
 						b2ShapeId* colliderShapes = new b2ShapeId[shapeCount];
 						b2Body_GetShapes(colliders[i], colliderShapes, shapeCount);
 						for (int j = 0; j < shapeCount; j++) {
@@ -400,9 +376,8 @@ int main(int argc, char* args[]) {
 				b2World_Step(worldId, 1.0f / 60.0f, 4);
 				for (int i = 0; i < colliders.size(); i++) {
 					b2Vec2 position = b2Body_GetPosition(colliders[i]);
-					float angle = b2Rot_GetAngle(b2Body_GetRotation(colliders[i]));
-					Vector2 rotatedPosition = rotateAboutPoint(newVector2(position.x * metresToPixels, position.y * metresToPixels), textures[i]->getCentre(), -angle, true);
-					textures[i]->setOrigin(rotatedPosition.x, rotatedPosition.y);
+					float angle = normalizeAngle(b2Rot_GetAngle(b2Body_GetRotation(colliders[i])));
+					textures[i]->setCentre(static_cast<int>(std::floor(position.x*metresToPixels)), static_cast<int>(std::floor(position.y* metresToPixels)));
 					textures[i]->setAngle(angle / DEGREES_TO_RADIANS);
 				}
 			}

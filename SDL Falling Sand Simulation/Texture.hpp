@@ -28,7 +28,7 @@ class Texture {
 
 		void free();
 
-		void setOrigin(int x, int y);
+		//void setOrigin(int x, int y);
 		
 		void setCentre(int x, int y);
 
@@ -58,7 +58,7 @@ class Texture {
 
 		SDL_Surface* surfacePixels;
 
-		Vector2 origin = {};
+		Vector2 centre = {};
 
 		int width;
 		int height;

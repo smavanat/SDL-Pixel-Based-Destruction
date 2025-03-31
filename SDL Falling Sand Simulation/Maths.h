@@ -1,12 +1,13 @@
 #pragma once
 #include<SDL.h>
+#include<box2d/box2d.h>
 
 const double DEGREES_TO_RADIANS = (M_PI / 180);
 
 struct Vector2
 {
-	int x;
-	int y;
+	float x;
+	float y;
 
 	Vector2 operator +(const Vector2& a) const {
 		Vector2 ret = {};
@@ -29,9 +30,9 @@ struct Vector2
 };
 
 struct Vector3 {
-	int x;
-	int y;
-	int z;
+	float x;
+	float y;
+	float z;
 
 	Vector3 operator +(const Vector3& a) const {
 		Vector3 ret = {};
@@ -65,10 +66,14 @@ Vector2 rotate(Vector2 vec, double angle, bool inRadians);
 
 //Rotates a Vector2 about a point in the z-axis and returns the result. Takes an angle in degrees or in radians, 
 //but if the angle is in degrees, the inRadians parameter must be set to false.
+b2Vec2 rotateAboutPoint2(Vector2 point, Vector2 centre, double angle, bool inRadians);
+
 Vector2 rotateAboutPoint(Vector2 point, Vector2 centre, double angle, bool inRadians);
 
+double normalizeAngle(double angle);
+
 //Creates a new Vector2
-Vector2 newVector2(int x, int y);
+Vector2 newVector2(float x, float y);
 
 //Creates a new Vector3
-Vector3 newVector3(int x, int y, int z);
+Vector3 newVector3(float x, float y, float z);

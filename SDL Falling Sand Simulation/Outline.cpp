@@ -101,34 +101,6 @@ int* getNeighbours(int pixelPosition, int arrayWidth, int arrayLength) {
 	return neighbourArr;
 }
 
-//bool findColoursOfNeighbours(int pixelPosition, int arrayWidth, int arrayLength, Uint32* bufferArray, Texture* texture) {
-//	bool nextToBlank = false;
-//	Uint32 noPixelColour = texture->mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
-//	int* neighbourArr = getNeighbours(pixelPosition, arrayWidth, arrayLength);
-//	for (int i = 0; i < 8; i++) {
-//		if (neighbourArr[i] != -1 && bufferArray[neighbourArr[i]] == noPixelColour) {
-//			nextToBlank = true;
-//		}
-//	}
-//	return nextToBlank;
-//}
-
-////Gets the outline of a texture;
-//std::vector<int> contourFinder(Uint32* pixels, Uint32 noPixelColour) {
-//	//Uint32 contourColour = testTexture.mapRGBA(0xFF, 0x00, 0xFF, 0xFF);
-//	std::vector<int> outlinePixels;
-//	for (int i = 0; i < testTexture.getWidth() * testTexture.getHeight(); i++) {
-//		if (pixels[i] == noPixelColour || !findColoursOfNeighbours(i, testTexture.getWidth(), testTexture.getWidth() * testTexture.getHeight(), pixels)) {
-//			continue;
-//		}
-//		else {
-//			//pixels[i] = contourColour;
-//			outlinePixels.push_back(i);
-//		}
-//	}
-//	return outlinePixels;
-//}
-
 void cleanup(Uint32* pixels, Uint32 noPixelColour, std::vector<int> indexes) {
 	for (int i = 0; i < indexes.size(); i++) {
 		pixels[indexes[i]] = noPixelColour;
@@ -201,12 +173,8 @@ Texture* constructNewPixelBuffer(std::vector<int> indexes, int* visitedTracker, 
 		}
 	}
 	width = endLinePos - startLinePos;
-	width = width + 1; //No way to test the width, so I pray this is the correct value. Otheriwise I'm fucked. I am indeed fucked. No longer
+	width = width + 1; 
 
-	int actualHeight = floor(indexes[indexes.size() - 1] / arrayWidth) + 1;
-
-	printf("Height: %i\n", height);
-	printf("Width: %i\n", width);
 	//Essentially, in order for marching squares to work, there has to be a one-pixel wide colourless perimeter around
 	//the texture. This is so that there is an actual "border" for marching squares to trace around, and I think this is 
 	//the least code and computationally expenseive method of implementing this, as the other way would be to have
@@ -217,6 +185,9 @@ Texture* constructNewPixelBuffer(std::vector<int> indexes, int* visitedTracker, 
 	//multiplication calls.
 	width += 2;
 	height += 2;
+
+	printf("Height: %i\n", height);
+	printf("Width: %i\n", width);
 	//Creating the pixel buffer for the new texture
 	newPixelBuffer = new Uint32[(width) * (height)];
 	//The memset here is actually making all the pixels have an alpha of 255 for some reason, even though noPixelColour has an alpha of 0.
@@ -256,8 +227,14 @@ Texture* constructNewPixelBuffer(std::vector<int> indexes, int* visitedTracker, 
 	int originX = texture->getOrigin().x + (startLinePos)-1; //-1 for transparent pixel border, so that the texture is not offset by one because of the invisible perimeter.
 	int originY = texture->getOrigin().y + ((int)floor(indexes[0] / arrayWidth)) - 1;
 
+	//Have to manually calculate the center from the origin here.
+	int centreX = roundf(originX) + roundf((width)/2.0f);
+	int centreY = roundf(originY)+ roundf((height) / 2.0f);
+	/*if (centreX % 2 == 0) centreX += 1;
+	if (centreY % 2 == 0) centreY += 1;*/
+
 	//Set this as a pointer as otherwise this variable will be destroyed once this method finishes.
-	newTexture = new Texture(originX, originY, width, height, newPixelBuffer, gRenderer, texture->getAngle());
+	newTexture = new Texture(centreX, centreY, width, height, newPixelBuffer, gRenderer, texture->getAngle());
 
 	cleanup(pixels, noPixelColour, indexes);
 	return newTexture;
@@ -282,9 +259,6 @@ std::vector<Texture*> splitTextureAtEdge(Texture* texture, SDL_Renderer* gRender
 	std::vector<int> possibleStarts;
 	//Vector for all the new textures that are being formed. This method will return them
 	std::vector<Texture*> newTextures;
-
-	printf("Texture Width: %i\n", texture->getWidth());
-	printf("Texture Height: %i\n", texture->getHeight());
 
 	//For loop to get all the split texture parts.
 	for (int i = 0; i < arrayLength; i++) {
@@ -360,7 +334,7 @@ std::vector<Texture*> splitTextureAtEdge(Texture* texture, SDL_Renderer* gRender
 
 		std::vector<int> contourPoints;
 		int startPoint = getStartingPixel(pixels, noPixelColour, totalPixels);
-		printf("Starting Point: %d\n", startPoint);
+		printf("MS Starting Point: %d\n", startPoint);
 		if (startPoint == -1) return contourPoints;
 		//If the texture is filled on the LHS, we will end up with 15 as our first currentSquare. 
 		//To avoid this, we simply offset startPoint one to the left, to get 12 as our currentSquare, 
@@ -369,8 +343,7 @@ std::vector<Texture*> splitTextureAtEdge(Texture* texture, SDL_Renderer* gRender
 			startPoint -= 1;
 		}
 
-		printf("Starting Point: %d\n", startPoint);
-		printf("Width: %i\n", texture->getWidth());
+		printf("MS Starting Point: %d\n", startPoint);
 
 		int stepX = 0, stepY = 0;
 		int prevX = 0, prevY = 0;
@@ -508,23 +481,67 @@ std::vector<Texture*> splitTextureAtEdge(Texture* texture, SDL_Renderer* gRender
 		vector = tmp;
 	}
 
+	//Finds the center of a shape assuming that it has been partitioned into triangles
+	TPPLPoint ComputeCompoundCentroid(TPPLPolyList &shapes) {
+		TPPLPoint weightedCentroid = {0.0f, 0.0f};
+		float totalArea = 0.0f;
+
+		for (TPPLPolyList::iterator it = shapes.begin(); it != shapes.end(); ++it) {
+			//Getting the vertices
+			TPPLPoint A = it->GetPoint(0);
+			TPPLPoint B = it->GetPoint(1);
+			TPPLPoint C = it->GetPoint(2);
+
+			//Getting the centroid
+			TPPLPoint centroid = (A + B + C) / 3.0f;
+
+			//Getting the area
+			float area = 0.5f * fabs(A.x * (B.y - C.y) + B.x * (C.y - A.y) + C.x * (A.y - B.y));
+
+			//Accumulate weighted centroid sum:
+			weightedCentroid.x += centroid.x * area;
+			weightedCentroid.y += centroid.y * area;
+			totalArea += area;
+		}
+
+		if (totalArea != 0) {
+			weightedCentroid.x /= totalArea;
+			weightedCentroid.y /= totalArea;
+		}
+
+		return weightedCentroid;
+	}
+
+	void CenterCompundShape(TPPLPolyList &shapes, TPPLPoint centre) {
+		printf("Rotating shape\n");
+		TPPLPoint compoundCentroid = ComputeCompoundCentroid(shapes);
+		printf("Centroid: (%f, %f)\n", compoundCentroid.x, compoundCentroid.y);
+
+		for (TPPLPolyList::iterator it = shapes.begin(); it != shapes.end(); ++it) {
+			for (int i = 0; i < it->GetNumPoints(); i++) {
+				it->GetPoint(i).x -= centre.x;
+				it->GetPoint(i).y -= centre.y;
+			}
+		}
+	}
+
 	//This doesn't always work. Maybe true pure triangulation? Or at least try and find the cause. The
 	//program sometimes oversimplifies the collider outline.
 	//Another issue is that the origin of polygon shapes is in the top left. This means that what we need to 
 	//do is offset the (0,0) co-ordinate to the (0,0) of the rotated texture otherwise nothing will work, and then do
 	//everything relative to that.
-	b2BodyId createTexturePolygon(std::vector<int> rdpPoints, int arrayWidth, int x, int y, double angle, b2WorldId worldId, Vector2 centre) {
+	b2BodyId createTexturePolygon(std::vector<int> rdpPoints, int arrayWidth, b2WorldId worldId, Texture* texture) {
 		//Getting points
 		b2Vec2* points = getVec2Array(rdpPoints, arrayWidth);
-		//Getting rotated positions
-		Vector2 rotatedPos = rotateAboutPoint(newVector2(x, y), centre, angle, false);
-
+		printf("CentreX: %f, CentreY, %f\n", texture->getCentre().x, texture->getCentre().y);
+		printf("OriginX: %f, OriginY: %f\n", texture->getOrigin().x, texture->getOrigin().y);
 		//Creating the b2Body
 		b2BodyDef testbodyDef = b2DefaultBodyDef();
 		testbodyDef.type = b2_dynamicBody;
-		testbodyDef.position = { static_cast<float>(rotatedPos.x) * pixelsToMetres, static_cast<float>(rotatedPos.y) * pixelsToMetres };
+		testbodyDef.position = { texture->getCentre().x * pixelsToMetres, texture->getCentre().y * pixelsToMetres };
+		//testbodyDef.position = { static_cast<float>(centre.x) * pixelsToMetres, static_cast<float>(centre.y) * pixelsToMetres };
 		//printf("ColliderPositionX: %f, ColliderPositionY: %f\n", testbodyDef.position.x * metresToPixels, testbodyDef.position.y * metresToPixels);
-		testbodyDef.rotation = { (float)cos(angle * DEGREES_TO_RADIANS), (float)sin(angle * DEGREES_TO_RADIANS) };
+		testbodyDef.rotation = { (float)cos(texture->getAngle() * DEGREES_TO_RADIANS), (float)sin(texture->getAngle() * DEGREES_TO_RADIANS) };
 		b2BodyId testId = b2CreateBody(worldId, &testbodyDef);
 
 		//I am going to partition the polygon regardless of whether or not the number of vertices is less than 8, because
@@ -559,6 +576,9 @@ std::vector<Texture*> splitTextureAtEdge(Texture* texture, SDL_Renderer* gRender
 		int result = test.Triangulate_OPT(poly, &polyList);
 		printf("Result: %i, Size: %i, ", result, polyList.size());
 		std::cout << "Valid: " << poly->Valid() <<"\n";
+
+		//Trying to center the polygon:
+		CenterCompundShape(polyList, {static_cast<double>(texture->getWidth()/2)*pixelsToMetres, static_cast<double>(texture->getHeight() / 2)*pixelsToMetres});
 
 		//Adding the polygons to the collider, or printing an error message if something goes wrong.
 		for (TPPLPolyList::iterator it = polyList.begin(); it != polyList.end(); ++it) {

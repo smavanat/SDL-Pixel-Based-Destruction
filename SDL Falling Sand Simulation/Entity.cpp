@@ -13,7 +13,7 @@ b2BodyId Entity::CreatePolygonCollider(b2WorldId id) {
 	temprdpPoints.push_back(tempPoints[tempPoints.size() - 2]);
 	rdp(0, tempPoints.size() - 1, 3, eTexture->getWidth(), tempPoints, temprdpPoints);
 	temprdpPoints.push_back(tempPoints[tempPoints.size() - 2]);
-	eCollider = createTexturePolygon(temprdpPoints, eTexture->getWidth(), eTexture->getOrigin().x, eTexture->getOrigin().y, eTexture->getAngle(), id, eTexture->getCentre());
+	eCollider = createTexturePolygon(temprdpPoints, eTexture->getWidth(), id, eTexture);
 	return eCollider;
 }
 
@@ -32,7 +32,7 @@ b2BodyId Entity::CreateBoxCollider(b2WorldId id) {
 void Entity::Update() {
 	position = newVector2(b2Body_GetPosition(eCollider).x * metresToPixels, b2Body_GetPosition(eCollider).y*metresToPixels);
 	angle = b2Rot_GetAngle(b2Body_GetRotation(eCollider)) / DEGREES_TO_RADIANS;
-	eTexture->setOrigin(position.x - (eTexture->getWidth() / 2), position.y - (eTexture->getHeight() / 2));
+	eTexture->setCentre(position.x, position.y);
 	eTexture->setAngle(angle);
 }
 

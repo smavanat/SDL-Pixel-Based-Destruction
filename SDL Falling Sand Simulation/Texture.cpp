@@ -14,7 +14,7 @@ Texture::Texture(int x, int y) {
 	width = 0;
 	height = 0;
 	angle = 0;
-	setOrigin(x, y);
+	setCentre(x, y);
 	needsSplitting = false;
 }
 	
@@ -24,7 +24,7 @@ Texture::Texture(int x, int y, int w, int h, Uint32* pixels, SDL_Renderer* gRend
 	width = 0;
 	height = 0;
 	angle = d;
-	setOrigin(x, y);
+	setCentre(x, y);
 	needsSplitting = false;
 	surfacePixels = SDL_CreateRGBSurfaceWithFormatFrom(pixels, w, h, 32, w * 4, SDL_PIXELFORMAT_ARGB8888);//pitch is the texture width * pixelsize in bytes
 	SDL_SetSurfaceBlendMode(surfacePixels, SDL_BLENDMODE_BLEND);
@@ -152,16 +152,13 @@ void Texture::free() {
 	}
 }
 	
-void Texture::setOrigin(int x, int y) {
-	origin.x = x;
-	origin.y = y;
-}
+//void Texture::setOrigin(int x, int y) {
+//	origin.x = x;
+//	origin.y = y;
+//}
 
 void Texture::setCentre(int x, int y) {
-	int centreX = x - width / 2;
-	int centreY = y - height / 2;
-	origin.x = centreX;
-	origin.y = centreY;
+	centre = newVector2(x, y);
 }
 
 void Texture::setAngle(double d) {
@@ -169,13 +166,13 @@ void Texture::setAngle(double d) {
 }
 	
 void Texture::render(SDL_Renderer* gRenderer) {
-	SDL_Rect renderQuad = { origin.x, origin.y, width, height };
+	SDL_Rect renderQuad = { getOrigin().x, getOrigin().y, width, height};
 	SDL_RenderCopy(gRenderer, texture, NULL, &renderQuad);
 }
 
 //When need a rotateable texture
 void Texture::render(SDL_Renderer* gRenderer, SDL_Rect* clip, double angle, SDL_Point* centre, SDL_RendererFlip flip) {
-	SDL_Rect renderQuad = { origin.x, origin.y, width, height };
+	SDL_Rect renderQuad = { getOrigin().x, getOrigin().y, width, height };
 
 	//Set clip rendering dimensions
 	if (clip != NULL)
@@ -208,12 +205,13 @@ double Texture::getAngle() {
 }
 	
 Vector2 Texture::getOrigin() {
-	return origin;
+	float originX = centre.x - (width / 2);
+	float originY = centre.y - (height / 2);
+	return newVector2(originX, originY);
 }
 
 Vector2 Texture::getCentre() {
-	Vector2 vec = {origin.x + width/2, origin.y + height/2};
-	return vec;
+	return centre;
 }
 	
 SDL_PixelFormat* Texture::getPixelFormat() {

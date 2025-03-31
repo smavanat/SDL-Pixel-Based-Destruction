@@ -13,6 +13,7 @@ class Entity
 	double originalColliderAngle = 0;*/
 	double angle; //In degrees
 	Vector2 position;
+	Vector2 originOffset;
 
 	public:
 		void SetTexture(Texture* texture);
