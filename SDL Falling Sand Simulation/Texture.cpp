@@ -62,31 +62,6 @@ bool Texture::loadPixelsFromFile(std::string path) {
 			printf("Unable to convert loaded surface to display format! SDL Error: %s\n", SDL_GetError());
 		}
 		else {
-			//Manually creating a one pixel transparent border around the texture by copying the pixel data
-			//into a new array that is 2 pixels wider and longer 
-
-			//Setting up the new array
-			Uint32 noPixelColour = SDL_MapRGBA(SDL_GetPixelFormatDetails(SDL_PIXELFORMAT_ARGB8888), NULL, 0xff, 0xff, 0xff, 0x00);
-			Uint32* currentPixels = this->getPixels32(); //Getting the original pixel data
-			Uint32* newPixels = new Uint32[(surfacePixels->w + 2) * (surfacePixels->h + 2)];
-			//Need to manually initialise the new array instead of using memset as the alpha channel is not used for some reason when using it
-			for (int i = 0; i < (surfacePixels->w + 2) * (surfacePixels->h + 2); i++) {
-				newPixels[i] = noPixelColour;
-			}
-			int oldWidth = surfacePixels->w;
-			//Populating the new pixel buffer with data
-			//Current heigh measures the current row of the new pixel buffer we are on
-			int currentHeight = 1;
-			for (int i = 0; i < (surfacePixels->w) * (surfacePixels->h); i++) {
-				//If the pixels are on different rows, increment the current height by their difference.
-				if (i != 0 && (floor(i / oldWidth) > floor((i - 1) / oldWidth))) {
-					currentHeight += (i / oldWidth) - floor((i - 1) / oldWidth);
-				}
-				//Add 1 here as an offset to the LHS perimeter. The RHS and BHS perimeters will be automatically accounted for
-				//as the code will never reach them, so no need to worry about that.
-				newPixels[(currentHeight * (oldWidth+2)) + (i % oldWidth) + 1] = currentPixels[i];
-			}
-			surfacePixels = SDL_CreateSurfaceFrom(oldWidth+2, surfacePixels->h+2, SDL_PIXELFORMAT_ARGB8888, newPixels, (surfacePixels->w+2) * 4);
 			width = surfacePixels->w;
 			height = surfacePixels->h;
 		}
