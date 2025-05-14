@@ -52,7 +52,7 @@ b2Vec2 rotateAboutPoint2(Vector2 point, Vector2 centre, double angle, bool inRad
 
 double normalizeAngle(double angle) {
 	if (angle < 0) {
-		return angle + 2 * M_PI;  // Shift negative angles into [0, 2pi]
+		return angle + 2 * (2 * acos(0.0));  // Shift negative angles into [0, 2pi]
 	}
 	return angle;
 }

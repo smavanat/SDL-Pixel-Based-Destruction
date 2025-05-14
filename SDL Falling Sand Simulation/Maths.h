@@ -1,8 +1,8 @@
 #pragma once
-#include<SDL.h>
+#include <SDL3/SDL.h>
 #include<box2d/box2d.h>
 
-const double DEGREES_TO_RADIANS = (M_PI / 180);
+const double DEGREES_TO_RADIANS = ((2 * acos(0.0)) / 180);
 
 struct Vector2
 {

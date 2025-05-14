@@ -1,7 +1,7 @@
 #pragma once
-#include<SDL.h>
+#include <SDL3/SDL.h>
+#include<SDL3_image/SDL_image.h>
 #include<stdio.h>
-#include<SDL_image.h>
 #include<iostream>
 #include "Maths.h"
 //Texture class. This contains functionality for creating textures that are loaded from files or from dynamically
@@ -30,13 +30,13 @@ class Texture {
 
 		//void setOrigin(int x, int y);
 		
-		void setCentre(int x, int y);
+		void setCentre(float x, float y);
 
 		void setAngle(double d);
 
 		void render(SDL_Renderer* gRenderer);
 
-		void render(SDL_Renderer* gRenderer, SDL_Rect* clip, double angle, SDL_Point* centre, SDL_RendererFlip flip);
+		void render(SDL_Renderer* gRenderer, SDL_FRect* clip, double angle, SDL_FPoint* centre, SDL_FlipMode flip);
 
 		void markAsAltered();
 
@@ -49,7 +49,7 @@ class Texture {
 		Uint32* getPixels32();
 		Uint32 getPitch32();
 		Uint32 mapRGBA(Uint8 r, Uint8 g, Uint8 b, Uint8 a);
-		SDL_PixelFormat* getPixelFormat();
+		SDL_PixelFormat getPixelFormat();
 		Vector2 getOrigin();
 		Vector2 getCentre();
 

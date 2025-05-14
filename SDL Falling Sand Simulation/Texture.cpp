@@ -26,7 +26,7 @@ Texture::Texture(int x, int y, int w, int h, Uint32* pixels, SDL_Renderer* gRend
 	angle = d;
 	setCentre(x, y);
 	needsSplitting = false;
-	surfacePixels = SDL_CreateRGBSurfaceWithFormatFrom(pixels, w, h, 32, w * 4, SDL_PIXELFORMAT_ARGB8888);//pitch is the texture width * pixelsize in bytes
+	surfacePixels = SDL_CreateSurfaceFrom(w, h, SDL_PIXELFORMAT_ARGB8888, pixels,w * 4);//pitch is the texture width * pixelsize in bytes
 	SDL_SetSurfaceBlendMode(surfacePixels, SDL_BLENDMODE_BLEND);
 	loadFromPixels(gRenderer); //Otherwise the texture does not exist.
 }
@@ -54,18 +54,43 @@ bool Texture::loadPixelsFromFile(std::string path) {
 		
 	SDL_Surface* loadedSurface = IMG_Load(path.c_str());
 	if (loadedSurface == NULL) {
-		printf("Unable to load image %s! SDL_image Error: %s\n", path.c_str(), IMG_GetError());
+		printf("Unable to load image %s! SDL_image Error: %s\n", path.c_str(), SDL_GetError());
 	}
 	else {
-		surfacePixels = SDL_ConvertSurfaceFormat(loadedSurface, SDL_PIXELFORMAT_ARGB8888, 0);
+		surfacePixels = SDL_ConvertSurface(loadedSurface, SDL_PIXELFORMAT_ARGB8888);
 		if (surfacePixels == NULL) {
 			printf("Unable to convert loaded surface to display format! SDL Error: %s\n", SDL_GetError());
 		}
 		else {
+			//Manually creating a one pixel transparent border around the texture by copying the pixel data
+			//into a new array that is 2 pixels wider and longer 
+
+			//Setting up the new array
+			Uint32 noPixelColour = SDL_MapRGBA(SDL_GetPixelFormatDetails(SDL_PIXELFORMAT_ARGB8888), NULL, 0xff, 0xff, 0xff, 0x00);
+			Uint32* currentPixels = this->getPixels32(); //Getting the original pixel data
+			Uint32* newPixels = new Uint32[(surfacePixels->w + 2) * (surfacePixels->h + 2)];
+			//Need to manually initialise the new array instead of using memset as the alpha channel is not used for some reason when using it
+			for (int i = 0; i < (surfacePixels->w + 2) * (surfacePixels->h + 2); i++) {
+				newPixels[i] = noPixelColour;
+			}
+			int oldWidth = surfacePixels->w;
+			//Populating the new pixel buffer with data
+			//Current heigh measures the current row of the new pixel buffer we are on
+			int currentHeight = 1;
+			for (int i = 0; i < (surfacePixels->w) * (surfacePixels->h); i++) {
+				//If the pixels are on different rows, increment the current height by their difference.
+				if (i != 0 && (floor(i / oldWidth) > floor((i - 1) / oldWidth))) {
+					currentHeight += (i / oldWidth) - floor((i - 1) / oldWidth);
+				}
+				//Add 1 here as an offset to the LHS perimeter. The RHS and BHS perimeters will be automatically accounted for
+				//as the code will never reach them, so no need to worry about that.
+				newPixels[(currentHeight * (oldWidth+2)) + (i % oldWidth) + 1] = currentPixels[i];
+			}
+			surfacePixels = SDL_CreateSurfaceFrom(oldWidth+2, surfacePixels->h+2, SDL_PIXELFORMAT_ARGB8888, newPixels, (surfacePixels->w+2) * 4);
 			width = surfacePixels->w;
 			height = surfacePixels->h;
 		}
-		SDL_FreeSurface(loadedSurface);
+		SDL_DestroySurface(loadedSurface);
 	}
 	return surfacePixels != NULL;
 }
@@ -96,12 +121,28 @@ bool Texture::isAltered() {
 }
 	
 bool Texture::clickedOnTransparent(int x, int y) {
-	x -= getOrigin().x;
+	/*x -= getOrigin().x;
 	y -= getOrigin().y;
 	Uint8 red, green, blue, alpha;
 	SDL_GetRGBA(getPixels32()[(y * getWidth()) + x], surfacePixels->format, &red, &green, &blue, &alpha);
 	if (alpha == 0) return true;
-	else return false;
+	else return false;*/
+
+	// Adjust for the origin of the texture
+	x -= getOrigin().x;
+	y -= getOrigin().y;
+
+	// Get the pixel format for accessing the surface
+	Uint8 alpha;
+	// Get the pixel data at (x, y) and retrieve RGBA values
+	SDL_GetRGBA(((Uint32*)surfacePixels->pixels)[y * surfacePixels->w + x],
+		SDL_GetPixelFormatDetails(surfacePixels->format), NULL, NULL, NULL, NULL, &alpha);
+
+	// Check if the pixel is fully transparent (alpha == 0)
+	if (alpha == 0) {
+		return true;
+	}
+	return false;
 }
 	
 Uint32* Texture::getPixels32() {
@@ -131,7 +172,7 @@ Uint32 Texture::mapRGBA(Uint8 r, Uint8 g, Uint8 b, Uint8 a)
 	
 	if (surfacePixels != NULL)
 	{
-		pixel = SDL_MapRGBA(surfacePixels->format, r, g, b, a);
+		pixel = SDL_MapRGBA(SDL_GetPixelFormatDetails(surfacePixels->format), NULL,r, g, b, a);
 	}
 	
 	return pixel;
@@ -147,7 +188,7 @@ void Texture::free() {
 	}
 	
 	if (surfacePixels != NULL) {
-		SDL_FreeSurface(surfacePixels);
+		SDL_DestroySurface(surfacePixels);
 		surfacePixels = NULL;
 	}
 }
@@ -157,7 +198,7 @@ void Texture::free() {
 //	origin.y = y;
 //}
 
-void Texture::setCentre(int x, int y) {
+void Texture::setCentre(float x, float y) {
 	centre = newVector2(x, y);
 }
 
@@ -166,13 +207,13 @@ void Texture::setAngle(double d) {
 }
 	
 void Texture::render(SDL_Renderer* gRenderer) {
-	SDL_Rect renderQuad = { getOrigin().x, getOrigin().y, width, height};
-	SDL_RenderCopy(gRenderer, texture, NULL, &renderQuad);
+	SDL_FRect renderQuad = { getOrigin().x, getOrigin().y, width, height};
+	SDL_RenderTexture(gRenderer, texture, NULL, &renderQuad);
 }
 
 //When need a rotateable texture
-void Texture::render(SDL_Renderer* gRenderer, SDL_Rect* clip, double angle, SDL_Point* centre, SDL_RendererFlip flip) {
-	SDL_Rect renderQuad = { getOrigin().x, getOrigin().y, width, height };
+void Texture::render(SDL_Renderer* gRenderer, SDL_FRect* clip, double angle, SDL_FPoint* centre, SDL_FlipMode flip) {
+	SDL_FRect renderQuad = { getOrigin().x, getOrigin().y, width, height };
 
 	//Set clip rendering dimensions
 	if (clip != NULL)
@@ -181,7 +222,7 @@ void Texture::render(SDL_Renderer* gRenderer, SDL_Rect* clip, double angle, SDL_
 		renderQuad.h = clip->h;
 	}
 
-	SDL_RenderCopyEx(gRenderer, texture, clip, &renderQuad, angle, centre, flip);
+	SDL_RenderTextureRotated(gRenderer, texture, clip, &renderQuad, angle, centre, flip);
 }
 
 void Texture::markAsAltered() {
@@ -214,6 +255,6 @@ Vector2 Texture::getCentre() {
 	return centre;
 }
 	
-SDL_PixelFormat* Texture::getPixelFormat() {
+SDL_PixelFormat Texture::getPixelFormat() {
 	return surfacePixels->format;
 }

@@ -1,13 +1,8 @@
 #include "Outline.hpp"
+#include<SDL3_image/SDL_image.h>
 
-//TODO: Need to try refactoring the code to work with entities. But i dont't think this is an immediate issue.
-//		Focus on the other issues first.
-//		
-//		Figure out how do deal with small shapes. Colliders are not generated for them, but they are still there.
+//TODO: Figure out how do deal with small shapes. Colliders are not generated for them, but they are still there.
 //		Maybe just erase them? Or put a default small collider around them.
-//
-//		Figure out why textures are moving on new creation. Have a look at the calculation of centreX and centreY in
-//		constructNewPixelBuffer
 
 const int SCREEN_WIDTH = 640;
 const int SCREEN_HEIGHT = 480;
@@ -52,13 +47,13 @@ bool init()
 	else
 	{
 		//Set texture filtering to linear
-		if (!SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1"))
+		/*if (!SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1"))
 		{
 			printf("Warning: Linear texture filtering not enabled!");
-		}
+		}*/
 
 		//Create window
-		gWindow = SDL_CreateWindow("SDL Tutorial", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
+		gWindow = SDL_CreateWindow("SDL Destruction", SCREEN_WIDTH, SCREEN_HEIGHT, SDL_EVENT_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
 		if (gWindow == NULL)
 		{
 			printf("Window could not be created! SDL Error: %s\n", SDL_GetError());
@@ -67,7 +62,7 @@ bool init()
 		else
 		{
 			//Create renderer for window
-			gRenderer = SDL_CreateRenderer(gWindow, -1, SDL_RENDERER_ACCELERATED);
+			gRenderer = SDL_CreateRenderer(gWindow, "opengl");
 			SDL_SetRenderDrawBlendMode(gRenderer, SDL_BLENDMODE_BLEND);
 			if (gRenderer == NULL)
 			{
@@ -79,13 +74,13 @@ bool init()
 				//Initialize renderer color
 				SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
 
-				//Initialize PNG loading
-				int imgFlags = IMG_INIT_PNG;
-				if (!(IMG_Init(imgFlags) & imgFlags))
-				{
-					printf("SDL_image could not initialize! SDL_image Error: %s\n", IMG_GetError());
-					success = false;
-				}
+				////Initialize PNG loading
+				//int imgFlags = IMG_INIT_PNG;
+				//if (IMG_Init() < 0)
+				//{
+				//	printf("SDL_image could not initialize! SDL_image Error: %s\n", SDL_GetError());
+				//	success = false;
+				//}
 			}
 		}
 		worldDef = b2DefaultWorldDef();
@@ -143,7 +138,7 @@ void close()
 	gRenderer = NULL;
 
 	//Quit SDL subsystems
-	IMG_Quit();
+	//IMG_Quit();
 	SDL_Quit();
 }
 
@@ -171,11 +166,11 @@ int main(int argc, char* args[]) {
 				int x, y;
 				while (SDL_PollEvent(&e)) {
 					switch (e.type) {
-					case SDL_QUIT:
+					case SDL_EVENT_QUIT:
 						quit = true;
 						break;
 					//Reseting bool values
-					case SDL_MOUSEBUTTONUP:
+					case SDL_EVENT_MOUSE_BUTTON_UP:
 						if (e.button.button == SDL_BUTTON_LEFT) {
 							std::vector<Texture*> texturesToRemove;
 							std::vector<Texture*> texturesToAdd;
@@ -223,7 +218,7 @@ int main(int argc, char* args[]) {
 							leftMouseButtonDown = false;
 						}
 						break;
-					case SDL_MOUSEBUTTONDOWN:
+					case SDL_EVENT_MOUSE_BUTTON_DOWN:
 						if (e.button.button == SDL_BUTTON_LEFT) {
 							leftMouseButtonDown = true;
 							getOutline = false;
@@ -233,25 +228,27 @@ int main(int argc, char* args[]) {
 								
 								Vector2 rotated = rotateAboutPoint(newVector2(e.motion.x, e.motion.y), t->getCentre(), -t->getAngle(), false);
 								if (rotated.x >= t->getOrigin().x && rotated.x < t->getOrigin().x + t->getWidth() &&
-									rotated.y < t->getOrigin().y + t->getHeight() && rotated.y >= t->getOrigin().y) {
+									rotated.y < t->getOrigin().y + t->getHeight() && rotated.y >= t->getOrigin().y
+									) {
 									erasePixels(t, gRenderer, scale, e.motion.x, e.motion.y);
 								}
 							}
 						}
 						break;
-					case SDL_MOUSEMOTION:
+					case SDL_EVENT_MOUSE_MOTION:
 						if (leftMouseButtonDown && e.motion.x >= 0 && e.motion.x < 640 && e.motion.y < 480 && e.motion.y >= 0) {
 							for (Texture* t : textures) {
 								Vector2 rotated = rotateAboutPoint(newVector2(e.motion.x, e.motion.y), t->getCentre(), -t->getAngle(), false);
 								if (rotated.x >= t->getOrigin().x && rotated.x < t->getOrigin().x + t->getWidth() &&
-									rotated.y < t->getOrigin().y + t->getHeight() && rotated.y >= t->getOrigin().y) {
+									rotated.y < t->getOrigin().y + t->getHeight() && rotated.y >= t->getOrigin().y
+									) {
 									erasePixels(t, gRenderer, scale, e.motion.x, e.motion.y);
 								}
 							}
 						}
 						break;
-					case SDL_KEYDOWN:
-						if (e.key.keysym.sym == SDLK_o) {
+					case SDL_EVENT_KEY_DOWN:
+						if (e.key.key == SDLK_O) {
 							getOutline = !getOutline;
 							if (getOutline) {
 								testingPoints.clear();
@@ -261,7 +258,7 @@ int main(int argc, char* args[]) {
 								}
 							}
 						}
-						if (e.key.keysym.sym == SDLK_s) {
+						if (e.key.key == SDLK_S) {
 							getSimplifiedOutline = !getSimplifiedOutline;
 							if (getSimplifiedOutline) {
 								rdpPoints.clear();
@@ -276,20 +273,20 @@ int main(int argc, char* args[]) {
 								}
 							}
 						}
-						if (e.key.keysym.sym == SDLK_c) {
+						if (e.key.key == SDLK_C) {
 							getColliderOutlines = !getColliderOutlines;
 						}
-						if (e.key.keysym.sym == SDLK_a && textures.size() == 1) {
+						if (e.key.key == SDLK_A && textures.size() == 1) {
 							textures[0]->setAngle(textures[0]->getAngle() - 1);
 							b2Rot angle = { cos(textures[0]->getAngle() * DEGREES_TO_RADIANS), sin(textures[0]->getAngle() * DEGREES_TO_RADIANS) };
 							b2Body_SetTransform(colliders[0], b2Body_GetPosition(colliders[0]), angle);
 						}
-						if (e.key.keysym.sym == SDLK_d && textures.size() == 1) {
+						if (e.key.key == SDLK_D && textures.size() == 1) {
 							textures[0]->setAngle(textures[0]->getAngle() + 1);
 							b2Rot angle = { cos(textures[0]->getAngle() * DEGREES_TO_RADIANS), sin(textures[0]->getAngle() * DEGREES_TO_RADIANS) };
 							b2Body_SetTransform(colliders[0], b2Body_GetPosition(colliders[0]), angle);
 						}
-						if (e.key.keysym.sym == SDLK_p) {
+						if (e.key.key == SDLK_P) {
 							for (int i = 0; i < textures.size(); i++) {
 								printf("New Position = (%f, %f)\n", textures[i]->getOrigin().x, textures[i]->getOrigin().y);
 								b2Vec2 position = b2Body_GetPosition(colliders[i]);
@@ -313,7 +310,7 @@ int main(int argc, char* args[]) {
 					for (int i = 0; i < testingPoints.size(); i++) {
 						for (int j = 0; j < testingPoints[i].size() - 1; j++) {
 							SDL_SetRenderDrawColor(gRenderer, 0x00, 0x00, 0xFF, 0xFF);
-							SDL_RenderDrawLine(gRenderer, textures[i]->getOrigin().x + (testingPoints[i][j] % textures[i]->getWidth()),
+							SDL_RenderLine(gRenderer, textures[i]->getOrigin().x + (testingPoints[i][j] % textures[i]->getWidth()),
 								textures[i]->getOrigin().y + (int)(floor(testingPoints[i][j] / textures[i]->getWidth())),
 								textures[i]->getOrigin().x + (testingPoints[i][j + 1] % textures[i]->getWidth()),
 								textures[i]->getOrigin().y + (int)(floor(testingPoints[i][j + 1] / textures[i]->getWidth())));
@@ -325,7 +322,7 @@ int main(int argc, char* args[]) {
 					for (int i = 0; i < rdpPoints.size(); i++) {
 						for (int j = 0; j < rdpPoints[i].size() - 1; j++) {
 							SDL_SetRenderDrawColor(gRenderer, 0xFF, 0x00, 0x00, 0xFF);
-							SDL_RenderDrawLine(gRenderer, textures[i]->getOrigin().x + (rdpPoints[i][j] % textures[i]->getWidth()),
+							SDL_RenderLine(gRenderer, textures[i]->getOrigin().x + (rdpPoints[i][j] % textures[i]->getWidth()),
 								textures[i]->getOrigin().y + (int)(floor(rdpPoints[i][j] / textures[i]->getWidth())),
 								textures[i]->getOrigin().x + (rdpPoints[i][j + 1] % textures[i]->getWidth()),
 								textures[i]->getOrigin().y + (int)(floor(rdpPoints[i][j + 1] / textures[i]->getWidth())));
@@ -343,7 +340,7 @@ int main(int argc, char* args[]) {
 					b2Vec2 position = b2Body_GetPosition(statics[0]);
 					b2Vec2* vertices = b2Shape_GetPolygon(shapes[0]).vertices;
 					for (int i = 0; i < 4; i++) {
-						SDL_RenderDrawLine(gRenderer, ((vertices[i].x + position.x)* metresToPixels), ((vertices[i].y + position.y)* metresToPixels),
+						SDL_RenderLine(gRenderer, ((vertices[i].x + position.x)* metresToPixels), ((vertices[i].y + position.y)* metresToPixels),
 													((vertices[(i + 1) > 3 ? 0 : (i + 1)].x + position.x)* metresToPixels), ((vertices[(i + 1) > 3 ? 0 : (i + 1)].y + position.y)* metresToPixels));
 					}
 
@@ -362,7 +359,7 @@ int main(int argc, char* args[]) {
 								rotateTranslate(colliderVertices[k], b2Rot_GetAngle(b2Body_GetRotation(colliders[i])));
 							}
 							for (int k = 0; k < 3; k++) {
-								SDL_RenderDrawLine(gRenderer, ((colliderVertices[k].x + colliderPosition.x)* metresToPixels), ((colliderVertices[k].y + colliderPosition.y)* metresToPixels),
+								SDL_RenderLine(gRenderer, ((colliderVertices[k].x + colliderPosition.x)* metresToPixels), ((colliderVertices[k].y + colliderPosition.y)* metresToPixels),
 									((colliderVertices[(k + 1) > 2 ? 0 : (k + 1)].x + colliderPosition.x)* metresToPixels), ((colliderVertices[(k + 1) > 2 ? 0 : (k + 1)].y + colliderPosition.y)* metresToPixels));
 							}
 						}
@@ -377,7 +374,11 @@ int main(int argc, char* args[]) {
 				for (int i = 0; i < colliders.size(); i++) {
 					b2Vec2 position = b2Body_GetPosition(colliders[i]);
 					float angle = normalizeAngle(b2Rot_GetAngle(b2Body_GetRotation(colliders[i])));
-					textures[i]->setCentre(static_cast<int>(std::floor(position.x*metresToPixels)), static_cast<int>(std::floor(position.y* metresToPixels)));
+					/*if (textures[i]->getCentre().x != static_cast<float>(position.x * metresToPixels) && textures[i]->getCentre().y != static_cast<float>(position.y * metresToPixels)) {
+						printf("OLD CENTER: %f, %f\n", textures[i]->getCentre().x, textures[i]->getCentre().y);
+						printf("NEW CENTER: %f, %f\n", textures[i]->getCentre().x, textures[i]->getCentre().y);
+					}*/
+					textures[i]->setCentre(static_cast<float>(position.x*metresToPixels), static_cast<float>(position.y* metresToPixels));
 					textures[i]->setAngle(angle / DEGREES_TO_RADIANS);
 				}
 			}

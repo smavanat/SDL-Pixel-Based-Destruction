@@ -1,7 +1,6 @@
 #pragma once
-#include<SDL.h>
+#include<SDL3/SDL.h>
 #include<stdio.h>
-#include<SDL_image.h>
 #include<iostream>
 #include<vector>
 #include<box2d/box2d.h>
@@ -9,6 +8,7 @@
 #include "Texture.hpp"
 const float metresToPixels = 50.0f;
 const float pixelsToMetres = 1.0f / metresToPixels;
+const Uint32 NO_PIXEL_COLOUR = SDL_MapRGBA(SDL_GetPixelFormatDetails(SDL_PIXELFORMAT_ARGB8888), NULL, 0xff, 0xff, 0xff, 0x00);
 
 void erasePixels(Texture* texture, SDL_Renderer* gRenderer, int scale, int x, int y);
 
@@ -24,19 +24,19 @@ int* getNeighbours(int pixelPosition, int arrayWidth, int arrayLength);
 
 //bool findColoursOfNeighbours(int pixelPosition, int arrayWidth, int arrayLength, Uint32* bufferArray);
 
-void cleanup(Uint32* pixels, Uint32 noPixelColour, std::vector<int> indexes);
+void cleanup(Uint32* pixels, std::vector<int> indexes);
 
 //std::vector<int> contourFinder(Uint32* pixels, Uint32 noPixelColour)
 
-std::vector<int> bfs(int index, int arrayWidth, int arrayLength, Uint32* pixels, Uint32 noPixelColour, int* visitedTracker);
+std::vector<int> bfs(int index, int arrayWidth, int arrayLength, Uint32* pixels, int* visitedTracker);
 
-Texture* constructNewPixelBuffer(std::vector<int> indexes, int* visitedTracker, Uint32* pixels, Uint32 noPixelColour, int arrayWidth, Texture* texture, SDL_Renderer* gRenderer);
+Texture* constructNewPixelBuffer(std::vector<int> indexes, Uint32* pixels, int arrayWidth, Texture* texture, SDL_Renderer* gRenderer);
 
 std::vector<Texture*> splitTextureAtEdge(Texture* texture, SDL_Renderer* gRenderer);
 
-int getStartingPixel(Uint32* pixels, Uint32 noPixelColour, int arrayLength);
+int getStartingPixel(Uint32* pixels, int arrayLength);
 
-int getCurrentSquare(int startIndex, int textureWidth, int textureLength, const uint32_t* pixels, uint32_t noPixelColour);
+int getCurrentSquare(int startIndex, int textureWidth, int textureLength, const Uint32* pixels);
 
 std::vector<int> marchingSquares(Texture* texture);
 

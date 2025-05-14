@@ -5,6 +5,8 @@
 #include<PolyPartition/polypartition.h>
 
 #pragma region splitTexture
+//Erases pixels in a texture in a circular radius determined by scale and marks the texture for alteration. 
+//If all the pixels in the radius have been erased, then the texture is not marked for alteration.
 void erasePixels(Texture* texture, SDL_Renderer* gRenderer, int scale, int x, int y) {
 	Vector2 newOrigin = rotateAboutPoint(newVector2(x, y), texture->getCentre(), -texture->getAngle(), false);
 
@@ -12,8 +14,6 @@ void erasePixels(Texture* texture, SDL_Renderer* gRenderer, int scale, int x, in
 	y = newOrigin.y - texture->getOrigin().y;
 
 	Uint32* pixels = texture->getPixels32();
-
-	Uint32 transparent = texture->mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
 
 	if (scale > 0) {
 		for (int w = 0; w < scale * 2; w++)
@@ -24,17 +24,20 @@ void erasePixels(Texture* texture, SDL_Renderer* gRenderer, int scale, int x, in
 				int dy = scale - h; // vertical offset
 				if ((dx * dx + dy * dy) < (scale * scale) && (x + dx < texture->getWidth()) && (x + dx > -1) && (y + dy < texture->getHeight()) && (y + dy > -1))
 				{
-					pixels[(y + dy) * texture->getWidth() + (x + dx)] = transparent;
+					if (pixels[(y + dy) * texture->getWidth() + (x + dx)] == NO_PIXEL_COLOUR) continue;
+					else {
+						pixels[(y + dy) * texture->getWidth() + (x + dx)] = NO_PIXEL_COLOUR;
+						if (!texture->isAltered()) texture->markAsAltered();
+					}
 				}
 			}
 		}
 	}
 	else {
-		pixels[y * texture->getWidth() + x] = transparent;
+		pixels[y * texture->getWidth() + x] = NO_PIXEL_COLOUR;
 	}
 
-	texture->loadFromPixels(gRenderer); 
-	texture->markAsAltered();
+	texture->loadFromPixels(gRenderer);
 }
 
 bool isAtTopEdge(int pixelPosition, int arrayWidth) {
@@ -101,14 +104,14 @@ int* getNeighbours(int pixelPosition, int arrayWidth, int arrayLength) {
 	return neighbourArr;
 }
 
-void cleanup(Uint32* pixels, Uint32 noPixelColour, std::vector<int> indexes) {
+void cleanup(Uint32* pixels, std::vector<int> indexes) {
 	for (int i = 0; i < indexes.size(); i++) {
-		pixels[indexes[i]] = noPixelColour;
+		pixels[indexes[i]] = NO_PIXEL_COLOUR;
 	}
 }
 
 //Crappy augmented flood-fill algorithm implementation taken from here: https://www.geeksforgeeks.org/flood-fill-algorithm/
-std::vector<int> bfs(int index, int arrayWidth, int arrayLength, Uint32* pixels, Uint32 noPixelColour, int* visitedTracker) {
+std::vector<int> bfs(int index, int arrayWidth, int arrayLength, Uint32* pixels, int* visitedTracker) {
 	std::vector<int> indexes;
 	std::queue<int> q;
 
@@ -121,22 +124,22 @@ std::vector<int> bfs(int index, int arrayWidth, int arrayLength, Uint32* pixels,
 	while (!q.empty()) {
 		int currentIndex = q.front();
 		q.pop();
-		if (!isAtTopEdge(currentIndex, arrayWidth) && pixels[currentIndex - arrayWidth] != noPixelColour && visitedTracker[currentIndex - arrayWidth] == 0) {
+		if (!isAtTopEdge(currentIndex, arrayWidth) && pixels[currentIndex - arrayWidth] != NO_PIXEL_COLOUR && visitedTracker[currentIndex - arrayWidth] == 0) {
 			indexes.push_back(currentIndex - arrayWidth);
 			q.push(currentIndex - arrayWidth);
 			visitedTracker[currentIndex - arrayWidth] = 1;
 		}
-		if (!isAtLeftEdge(currentIndex, arrayWidth) && pixels[currentIndex - 1] != noPixelColour && visitedTracker[currentIndex - 1] == 0) {
+		if (!isAtLeftEdge(currentIndex, arrayWidth) && pixels[currentIndex - 1] != NO_PIXEL_COLOUR && visitedTracker[currentIndex - 1] == 0) {
 			indexes.push_back(currentIndex - 1);
 			q.push(currentIndex - 1);
 			visitedTracker[currentIndex - 1] = 1;
 		}
-		if (!isAtBottomEdge(currentIndex, arrayWidth, arrayLength) && pixels[currentIndex + arrayWidth] != noPixelColour && visitedTracker[currentIndex + arrayWidth] == 0) {
+		if (!isAtBottomEdge(currentIndex, arrayWidth, arrayLength) && pixels[currentIndex + arrayWidth] != NO_PIXEL_COLOUR && visitedTracker[currentIndex + arrayWidth] == 0) {
 			indexes.push_back(currentIndex + arrayWidth);
 			q.push(currentIndex + arrayWidth);
 			visitedTracker[currentIndex + arrayWidth] = 1;
 		}
-		if (!isAtRightEdge(currentIndex, arrayWidth) && pixels[currentIndex + 1] != noPixelColour && visitedTracker[currentIndex + 1] == 0) {
+		if (!isAtRightEdge(currentIndex, arrayWidth) && pixels[currentIndex + 1] != NO_PIXEL_COLOUR && visitedTracker[currentIndex + 1] == 0) {
 			indexes.push_back(currentIndex + 1);
 			q.push(currentIndex + 1);
 			visitedTracker[currentIndex + 1] = 1;
@@ -148,11 +151,13 @@ std::vector<int> bfs(int index, int arrayWidth, int arrayLength, Uint32* pixels,
 	return indexes;
 }
 
-Texture* constructNewPixelBuffer(std::vector<int> indexes, int* visitedTracker, Uint32* pixels, Uint32 noPixelColour, int arrayWidth, Texture* texture, SDL_Renderer* gRenderer) {
+Texture* constructNewPixelBuffer(std::vector<int> indexes, Uint32* pixels, int arrayWidth, Texture* texture, SDL_Renderer* gRenderer) {
 	Uint32* newPixelBuffer;
 	Texture* newTexture;
 	int width = 0;
-	int height = (int)(indexes.back() / arrayWidth) - (int)(indexes.front() / arrayWidth) + 1;
+	int height = (int)(indexes.back() / arrayWidth) - (int)(indexes.front() / arrayWidth) + 1; //Why is the height including the pixel buffer??? Surely that shouldn't come up
+
+	printf("tHeight: %i, bHeight: %i\n", indexes.back(), indexes.front());
 
 	int startLinePos = indexes[0] % arrayWidth;
 	int endLinePos = indexes[0] % arrayWidth;
@@ -194,22 +199,15 @@ Texture* constructNewPixelBuffer(std::vector<int> indexes, int* visitedTracker, 
 	//memset(newPixelBuffer, noPixelColour, width * height * sizeof(Uint32));//Filling it with transparent pixels
 	//Using a for loop instead of memset fixes the alpha problem here.
 	for (int i = 0; i < ((width) * (height)); i++) {
-		newPixelBuffer[i] = noPixelColour;
+		newPixelBuffer[i] = NO_PIXEL_COLOUR;
 	}
 
-	//Now need to figure out a way of getting the actual indecies to become relative indecies so I can stick them 
-	//into this new array. This would be good if I had an origin point, but I don't. Perhaps a way of getting one would be
-	//to get the smallest startLinePos by % with arrayWidth, and then have that be "0" on the x direction.
-	//This is an incredibly retarded solution, and luckily, I'm already doing half of the work for this to get the 
-	//max width, so less retarded than initially thought.
-	//y does not need to be obtained in such a retarded fashion, because we have the width value to determine how long 
-	//each row should be (assuming the vain hope that my method of obtaining the width was correct).
-	//No way of testing this until we start working with multiple split textures.
-	//There is actually no need for an origin position, we just get the offset by using startLinePos, because an offset
-	//is only actually needed when slicing vertically, not horizontally. Using an origin messes everything up.
-
+	//Populating the new pixel buffer with data
+	//startLinePos acts as an offset to figure out how far left the texture has moved. 
+	//Current heigh measures the current row of the new pixel buffer we are on
 	int currentHeight = 1; //Since the first row will be the blank pixel perimeter.
 	for (int i = 0; i < indexes.size(); i++) {
+		//If the pixels are on different rows, increment the current height by their difference.
 		if (i != 0 && (floor(indexes[i] / arrayWidth) > floor(indexes[i - 1] / arrayWidth))) {
 			currentHeight += floor(indexes[i] / arrayWidth) - floor(indexes[i - 1] / arrayWidth);
 		}
@@ -223,20 +221,22 @@ Texture* constructNewPixelBuffer(std::vector<int> indexes, int* visitedTracker, 
 		newPixelBuffer[5] = pixels[indexes[0]];
 	}
 
-	//This works. Still need to fix the alpha issue. Used pointers otherwise this doesn't work.
-	int originX = texture->getOrigin().x + (startLinePos)-1; //-1 for transparent pixel border, so that the texture is not offset by one because of the invisible perimeter.
-	int originY = texture->getOrigin().y + ((int)floor(indexes[0] / arrayWidth)) - 1;
+	//This works now. Cieling it gives the correct value. However I now get a memory error somewhere
+	float originX = ceilf(texture->getOrigin().x + (startLinePos))-1.0f; //Assume original textures also have transparent border
+	float originY = ceilf(texture->getOrigin().y + ((int)floor(indexes[0] / arrayWidth)))-1.0f;
+
+	printf("ORIGINAL OriginX: %f ORIGINAL OriginY: %f\n", originX, originY);
 
 	//Have to manually calculate the center from the origin here.
-	int centreX = roundf(originX) + roundf((width)/2.0f);
-	int centreY = roundf(originY)+ roundf((height) / 2.0f);
-	/*if (centreX % 2 == 0) centreX += 1;
-	if (centreY % 2 == 0) centreY += 1;*/
+	float centreX = originX + floorf((width)/2.0f); //floor instead of ceil because 0-indexed
+	float centreY = originY + floorf((height) / 2.0f);
+
+	printf("ORIGINAL CentreX: %f ORIGINAL CentreY: %f\n", centreX, centreY);
 
 	//Set this as a pointer as otherwise this variable will be destroyed once this method finishes.
 	newTexture = new Texture(centreX, centreY, width, height, newPixelBuffer, gRenderer, texture->getAngle());
 
-	cleanup(pixels, noPixelColour, indexes);
+	cleanup(pixels, indexes);
 	return newTexture;
 
 	//delete[] newPixelBuffer; //This needs to be commented out since we are actively using newPixelBuffer to create our texture.
@@ -248,7 +248,7 @@ std::vector<Texture*> splitTextureAtEdge(Texture* texture, SDL_Renderer* gRender
 	//Get the texture pixels
 	Uint32* pixels = texture->getPixels32(); //This has the correct alpha values for the pixels (checked)
 	//This is the transparent pixel colour
-	Uint32 noPixelColour = texture->mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
+	//Uint32 noPixelColour = texture->mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
 	//A placement int that gets the length of the pixel 1D array
 	int arrayLength = texture->getWidth() * texture->getHeight();
 	//A bitmap that remembers if we visited a pixel before or not.
@@ -262,11 +262,11 @@ std::vector<Texture*> splitTextureAtEdge(Texture* texture, SDL_Renderer* gRender
 
 	//For loop to get all the split texture parts.
 	for (int i = 0; i < arrayLength; i++) {
-		if (pixels[i] != noPixelColour) {
-			possibleStarts = bfs(i, texture->getWidth(), arrayLength, pixels, noPixelColour, visitedTracker);
-			printf("bfs size: %i\n", possibleStarts.size());
+		if (pixels[i] != NO_PIXEL_COLOUR) {
+			possibleStarts = bfs(i, texture->getWidth(), arrayLength, pixels, visitedTracker);
+			//printf("bfs size: %i\n", possibleStarts.size());
 			if (!possibleStarts.empty()) {
-				newTextures.push_back(constructNewPixelBuffer(possibleStarts, visitedTracker, pixels, noPixelColour, texture->getWidth(), texture, gRenderer));
+				newTextures.push_back(constructNewPixelBuffer(possibleStarts, pixels, texture->getWidth(), texture, gRenderer));
 			}
 		}
 	}
@@ -285,9 +285,9 @@ std::vector<Texture*> splitTextureAtEdge(Texture* texture, SDL_Renderer* gRender
 	//					Good source code and ideas from here: https://emanueleferonato.com/2013/03/01/using-marching-squares-algorithm-to-trace-the-contour-of-an-image/
 	//					And here: https://barradeau.com/blog/?p=391
 
-	int getStartingPixel(Uint32* pixels, Uint32 noPixelColour, int arrayLength) {
+	int getStartingPixel(Uint32* pixels, int arrayLength) {
 		for (int i = 0; i < arrayLength; i++) {
-			if (pixels[i] != noPixelColour) {
+			if (pixels[i] != NO_PIXEL_COLOUR) {
 				return i;
 			}
 		}
@@ -295,7 +295,7 @@ std::vector<Texture*> splitTextureAtEdge(Texture* texture, SDL_Renderer* gRender
 	}
 
 	//ChatGPT version: (This is actually far less retarded than my original code and actually quite nice. Doesn't stop the fact that the code overall still doesn't work though)
-	int getCurrentSquare(int startIndex, int textureWidth, int textureLength, const uint32_t* pixels, uint32_t noPixelColour) {
+	int getCurrentSquare(int startIndex, int textureWidth, int textureLength, const Uint32* pixels) {
 		int result = 0;
 
 		// Calculate row and column of startIndex
@@ -303,47 +303,40 @@ std::vector<Texture*> splitTextureAtEdge(Texture* texture, SDL_Renderer* gRender
 		int col = startIndex % textureWidth;
 
 		// Top-left pixel
-		if (pixels[startIndex] != noPixelColour) result += 1;
+		if (pixels[startIndex] != NO_PIXEL_COLOUR) result += 1;
 
 		// Top-right pixel
-		if (pixels[startIndex + 1] != noPixelColour) result += 2;
+		if (pixels[startIndex + 1] != NO_PIXEL_COLOUR) result += 2;
 
 		// Bottom-left pixel
-		if (pixels[startIndex + textureWidth] != noPixelColour) result += 4;
+		if (pixels[startIndex + textureWidth] != NO_PIXEL_COLOUR) result += 4;
 
 		// Bottom-right pixel
-		if (pixels[startIndex + textureWidth + 1] != noPixelColour) result += 8;
+		if (pixels[startIndex + textureWidth + 1] != NO_PIXEL_COLOUR) result += 8;
 
 		return result;
 	}
 
-	//ChatGPT version. Idk looks odd.
-	//Maybe the issue is that we shouldn't be considering the 15th case at all. so if we're at an edge, even the left or top edge,
-	//we actually pretend like there is an invisible, one pixel long perimeter around the texture, so that we never form the 
-	//15th case. So then at the top edge we would get 12, unless at the TRH corner, where we would get 4, or at the TLH corner,
-	//where we would get 8. And then for the left hand side we would get 10, unless in the BLH corner, where we would get 2
-	//(TLH corner is discussed in previous sentence). And then we keep Bottom and Right as is since we already pretend they have
-	//a perimeter anyway. Maybe this fixes???????? But would case fucked out of bounds errors. ORRR. We don't imagine the pixel
-	//perimeter, we actually add it in for real. That way we don't have to pretend. But that could be aids to do. 
+	//Actual marching squares method. Requires that every texture has a one-pixel transparent border so that
+	//it does not get confused by the lack of empty textueres.
 	std::vector<int> marchingSquares(Texture* texture) {
-		uint32_t* pixels = texture->getPixels32();
+		Uint32* pixels = texture->getPixels32();
 		int width = texture->getWidth();
 		int length = texture->getHeight() * width;
 		int totalPixels = width * length;
-		uint32_t noPixelColour = texture->mapRGBA(0xFF, 0xFF, 0xFF, 0x00);
 
 		std::vector<int> contourPoints;
-		int startPoint = getStartingPixel(pixels, noPixelColour, totalPixels);
-		printf("MS Starting Point: %d\n", startPoint);
+		int startPoint = getStartingPixel(pixels, totalPixels);
+		//printf("MS Starting Point: %d\n", startPoint);
 		if (startPoint == -1) return contourPoints;
 		//If the texture is filled on the LHS, we will end up with 15 as our first currentSquare. 
 		//To avoid this, we simply offset startPoint one to the left, to get 12 as our currentSquare, 
 		//and then marching squares handles the rest.
-		if (getCurrentSquare(startPoint, width, length, pixels, noPixelColour) == 15) {
+		if (getCurrentSquare(startPoint, width, length, pixels) == 15) {
 			startPoint -= 1;
 		}
 
-		printf("MS Starting Point: %d\n", startPoint);
+		//printf("MS Starting Point: %d\n", startPoint);
 
 		int stepX = 0, stepY = 0;
 		int prevX = 0, prevY = 0;
@@ -351,7 +344,7 @@ std::vector<Texture*> splitTextureAtEdge(Texture* texture, SDL_Renderer* gRender
 		bool closedLoop = false;
 
 		while (!closedLoop) {
-			int currentSquare = getCurrentSquare(currentPoint, width, length, pixels, noPixelColour);
+			int currentSquare = getCurrentSquare(currentPoint, width, length, pixels);
 			//printf("Current Square: %d\n", currentSquare);
 
 			// Movement lookup based on currentSquare value
@@ -513,9 +506,9 @@ std::vector<Texture*> splitTextureAtEdge(Texture* texture, SDL_Renderer* gRender
 	}
 
 	void CenterCompundShape(TPPLPolyList &shapes, TPPLPoint centre) {
-		printf("Rotating shape\n");
+		//printf("Rotating shape\n");
 		TPPLPoint compoundCentroid = ComputeCompoundCentroid(shapes);
-		printf("Centroid: (%f, %f)\n", compoundCentroid.x, compoundCentroid.y);
+		//printf("Centroid: (%f, %f)\n", compoundCentroid.x, compoundCentroid.y);
 
 		for (TPPLPolyList::iterator it = shapes.begin(); it != shapes.end(); ++it) {
 			for (int i = 0; i < it->GetNumPoints(); i++) {
@@ -525,16 +518,13 @@ std::vector<Texture*> splitTextureAtEdge(Texture* texture, SDL_Renderer* gRender
 		}
 	}
 
-	//This doesn't always work. Maybe true pure triangulation? Or at least try and find the cause. The
-	//program sometimes oversimplifies the collider outline.
-	//Another issue is that the origin of polygon shapes is in the top left. This means that what we need to 
-	//do is offset the (0,0) co-ordinate to the (0,0) of the rotated texture otherwise nothing will work, and then do
-	//everything relative to that.
+	//Creates a texture polygon by using pure triangulation, and then moves the origin so that it is in the centre of the 
+	//shape rather than at the top-left corner.
 	b2BodyId createTexturePolygon(std::vector<int> rdpPoints, int arrayWidth, b2WorldId worldId, Texture* texture) {
 		//Getting points
 		b2Vec2* points = getVec2Array(rdpPoints, arrayWidth);
-		printf("CentreX: %f, CentreY, %f\n", texture->getCentre().x, texture->getCentre().y);
-		printf("OriginX: %f, OriginY: %f\n", texture->getOrigin().x, texture->getOrigin().y);
+		//printf("CentreX: %f, CentreY, %f\n", texture->getCentre().x, texture->getCentre().y);
+		//printf("OriginX: %f, OriginY: %f\n", texture->getOrigin().x, texture->getOrigin().y);
 		//Creating the b2Body
 		b2BodyDef testbodyDef = b2DefaultBodyDef();
 		testbodyDef.type = b2_dynamicBody;
@@ -563,9 +553,9 @@ std::vector<Texture*> splitTextureAtEdge(Texture* texture, SDL_Renderer* gRender
 
 		//The problem, which can be checked by simply looking at the points outputted here, is that (0,0) comes up twice in the
 		//list of points, so I think this confuses the partitioning algorithm. This may be a problem in how I am doing my rdp.
-		printf("Printing Poly points\n");
+		//printf("Printing Poly points\n");
 		for (int i = 0; i < rdpPoints.size(); i++) {
-			printf("X: %f, Y: %f\n", (*poly)[i].x, (*poly)[i].y);
+			//printf("X: %f, Y: %f\n", (*poly)[i].x, (*poly)[i].y);
 		}
 
 		//Need to set it to be oriented Counter-Clockwise otherwise the triangulation algorithm fails.
@@ -574,21 +564,20 @@ std::vector<Texture*> splitTextureAtEdge(Texture* texture, SDL_Renderer* gRender
 		//int result = test.ConvexPartition_HM(poly, &polyList);	
 		//int result = test.ConvexPartition_OPT(poly, &polyList);
 		int result = test.Triangulate_OPT(poly, &polyList);
-		printf("Result: %i, Size: %i, ", result, polyList.size());
-		std::cout << "Valid: " << poly->Valid() <<"\n";
+		//printf("Result: %i, Size: %i, ", result, polyList.size
 
 		//Trying to center the polygon:
 		CenterCompundShape(polyList, {static_cast<double>(texture->getWidth()/2)*pixelsToMetres, static_cast<double>(texture->getHeight() / 2)*pixelsToMetres});
 
 		//Adding the polygons to the collider, or printing an error message if something goes wrong.
 		for (TPPLPolyList::iterator it = polyList.begin(); it != polyList.end(); ++it) {
-			printf("Shape Coords\n");
+			//printf("Shape Coords\n");
 			for (int i = 0; i < it->GetNumPoints(); i++) {
-				printf("%f, %f\n",it->GetPoint(i).x, it->GetPoint(i).y);
+				//printf("%f, %f\n",it->GetPoint(i).x, it->GetPoint(i).y);
 			}
 			b2Hull hull = b2ComputeHull(convertToVec2(it->GetPoints(), it->GetNumPoints()), it->GetNumPoints());
 			if (hull.count == 0) {
-				printf("Something odd has occured when generating a hull from a polyList\n");
+				//printf("Something odd has occured when generating a hull from a polyList\n");
 			}
 			else {
 				b2Polygon testagon = b2MakePolygon(&hull, 0.0f);
@@ -597,7 +586,7 @@ std::vector<Texture*> splitTextureAtEdge(Texture* texture, SDL_Renderer* gRender
 				b2CreatePolygonShape(testId, &testshapeDef, &testagon);
 			}
 		}
-		printf("Number of shapes on the body: %i\n", b2Body_GetShapeCount(testId));
+		//printf("Number of shapes on the body: %i\n", b2Body_GetShapeCount(testId));
 		return testId;
 	}
 #pragma endregion
